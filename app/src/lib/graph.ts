@@ -19,8 +19,7 @@ export interface GraphSense {
 
 export type GraphItem =
   | { kind: 'sense'; sense: GraphSense; h: number }
-  | { kind: 'today'; h: number }
-  | { kind: 'sep'; h: number; label: string };
+  | { kind: 'today'; h: number };
 
 export interface LayoutOptions {
   rowH: number;

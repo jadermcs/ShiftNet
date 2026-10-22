@@ -1,7 +1,7 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useMatch } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, BookOpen, ChevronRight, GitBranch, House, Info, ListTree, MessageSquarePlus, Monitor, Moon, PanelLeft, ShieldCheck, Sun } from 'lucide-react';
+import { BarChart3, BookOpen, ChevronRight, FileText, House, Info, ListTree, MessageSquarePlus, Monitor, Moon, PanelLeft, ShieldCheck, Sun } from 'lucide-react';
 import { fetchWords } from '../lib/api';
 import { useTheme, type ThemePref } from '../lib/theme';
 import { useIsModerator, useSession } from '../lib/contributions';
@@ -13,7 +13,6 @@ export interface Crumb {
 }
 
 const CrumbsCtx = createContext<(c: Crumb[]) => void>(() => {});
-const MainCtx = createContext<RefObject<HTMLElement> | null>(null);
 
 /** Pages declare their breadcrumb trail; Home is always first. */
 export function useCrumbs(crumbs: Crumb[]) {
@@ -21,9 +20,6 @@ export function useCrumbs(crumbs: Crumb[]) {
   const key = JSON.stringify(crumbs);
   useEffect(() => set(JSON.parse(key)), [key, set]);
 }
-
-/** The scrolling <main>, for infinite scroll and "jump to". */
-export const useMainScroller = () => useContext(MainCtx);
 
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
 const THEME_LABEL: Record<ThemePref, string> = { system: 'System', light: 'Light', dark: 'Dark' };
@@ -60,10 +56,6 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
           <House size={16} aria-hidden="true" />
           Home
         </NavLink>
-        <NavLink to="/timeline" className="nav-item" onClick={onNavigate}>
-          <GitBranch size={16} aria-hidden="true" />
-          Global timeline
-        </NavLink>
         <NavLink to="/taxonomy" className="nav-item" onClick={onNavigate}>
           <ListTree size={16} aria-hidden="true" />
           Taxonomy
@@ -75,6 +67,10 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
         <NavLink to="/about" className="nav-item" onClick={onNavigate}>
           <Info size={16} aria-hidden="true" />
           About &amp; sources
+        </NavLink>
+        <NavLink to="/docs" className="nav-item" onClick={onNavigate}>
+          <FileText size={16} aria-hidden="true" />
+          Documentation
         </NavLink>
         <NavLink to="/contribute" className="nav-item" onClick={onNavigate}>
           <MessageSquarePlus size={16} aria-hidden="true" />
@@ -139,7 +135,6 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <CrumbsCtx.Provider value={setCrumbs}>
-      <MainCtx.Provider value={mainRef}>
         <a href="#main" className="skip-link">
           Skip to content
         </a>
@@ -183,7 +178,6 @@ export function Shell({ children }: { children: ReactNode }) {
             </main>
           </div>
         </div>
-      </MainCtx.Provider>
     </CrumbsCtx.Provider>
   );
 }

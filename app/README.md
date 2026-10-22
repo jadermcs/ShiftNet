@@ -116,7 +116,7 @@ insert into public.moderators (user_id) select id from auth.users where email = 
 | US2 Search | `src/components/SearchBox.tsx`, `src/pages/SearchResults.tsx` |
 | US3 Word entry | `src/pages/WordPage.tsx` (`SensesView`) |
 | US4 Lineage | `src/lib/graph.ts` (layout), `src/components/LineageTable.tsx`, `LineageGraph.tsx` |
-| US5 Global timeline | `src/pages/GlobalTimeline.tsx` (50 rows per page, infinite scroll, jump to period) |
+| Documentation (replaces US5 Global timeline) | `src/pages/Docs.tsx` (`/docs`: website, backend tools, MCP server) |
 | US6 / US7 Sense detail, relations | `src/pages/SensePage.tsx` |
 | US8 Time travel | `TimelineView` in `WordPage.tsx` (`?at=`) |
 | US9 Filters | `src/components/FilterBar.tsx`, `src/lib/params.ts` |

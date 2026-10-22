@@ -8,7 +8,7 @@ import { Home } from './pages/Home';
 import { SearchResults } from './pages/SearchResults';
 import { WordPage } from './pages/WordPage';
 import { SensePage } from './pages/SensePage';
-import { GlobalTimeline } from './pages/GlobalTimeline';
+import { Docs } from './pages/Docs';
 import { About } from './pages/About';
 import { Contribute } from './pages/Contribute';
 import { ProposeUsage } from './pages/ProposeUsage';
@@ -50,7 +50,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/search/:q" element={<SearchResults />} />
               <Route path="/word/:lemma" element={<WordPage />} />
               <Route path="/sense/:id" element={<SensePage />} />
-              <Route path="/timeline" element={<GlobalTimeline />} />
+              <Route path="/docs" element={<Docs />} />
               <Route path="/taxonomy" element={<TaxonomyPage />} />
               <Route path="/synset/:id" element={<SynsetPage />} />
               <Route path="/stats" element={<StatsPage />} />
