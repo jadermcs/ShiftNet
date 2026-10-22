@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link, NavLink, useLocation, useMatch } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, ChevronRight, GitBranch, House, Info, MessageSquarePlus, PanelLeft, ShieldCheck } from 'lucide-react';
+import { BarChart3, BookOpen, ChevronRight, GitBranch, House, Info, ListTree, MessageSquarePlus, PanelLeft, ShieldCheck } from 'lucide-react';
 import { fetchWords } from '../lib/api';
 import { useIsModerator, useSession } from '../lib/contributions';
 import { SearchBox } from './SearchBox';
@@ -47,6 +47,14 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
         <NavLink to="/timeline" className="nav-item" onClick={onNavigate}>
           <GitBranch size={16} aria-hidden="true" />
           Global timeline
+        </NavLink>
+        <NavLink to="/taxonomy" className="nav-item" onClick={onNavigate}>
+          <ListTree size={16} aria-hidden="true" />
+          Taxonomy
+        </NavLink>
+        <NavLink to="/stats" className="nav-item" onClick={onNavigate}>
+          <BarChart3 size={16} aria-hidden="true" />
+          Statistics
         </NavLink>
         <NavLink to="/about" className="nav-item" onClick={onNavigate}>
           <Info size={16} aria-hidden="true" />

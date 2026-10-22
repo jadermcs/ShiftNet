@@ -12,6 +12,9 @@ import { GlobalTimeline } from './pages/GlobalTimeline';
 import { About } from './pages/About';
 import { Contribute } from './pages/Contribute';
 import { ProposeUsage } from './pages/ProposeUsage';
+import { TaxonomyPage } from './pages/TaxonomyPage';
+import { SynsetPage } from './pages/SynsetPage';
+import { StatsPage } from './pages/StatsPage';
 import { ProposeSense } from './pages/ProposeSense';
 import { ReviewQueue } from './pages/ReviewQueue';
 import { NotFoundRoute } from './pages/NotFound';
@@ -47,6 +50,9 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/word/:lemma" element={<WordPage />} />
               <Route path="/sense/:id" element={<SensePage />} />
               <Route path="/timeline" element={<GlobalTimeline />} />
+              <Route path="/taxonomy" element={<TaxonomyPage />} />
+              <Route path="/synset/:id" element={<SynsetPage />} />
+              <Route path="/stats" element={<StatsPage />} />
               <Route path="/about" element={<About />} />
               <Route path="/contribute" element={<Contribute />} />
               <Route path="/contribute/usage" element={<ProposeUsage />} />

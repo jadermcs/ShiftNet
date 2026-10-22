@@ -95,6 +95,8 @@ export interface Relation {
 
 export interface SenseDetail extends Sense {
   relations: Relation[];
+  /** The WordNet synset the sense belongs to; null until it is placed in the taxonomy. */
+  synset_id: string | null;
 }
 
 export interface WordSummary {
@@ -121,4 +123,70 @@ export interface CloseSpelling {
 export interface Period {
   label: string;
   row_offset: number;
+}
+
+/** A node of the WordNet taxonomy (public.synsets). The first lemma names it. */
+export interface SynsetRef {
+  id: string;
+  pos: Pos;
+  lemmas: string[];
+  gloss: string | null;
+}
+
+/** One step of public.synset_path; depth 0 is the synset itself. */
+export interface PathStep extends SynsetRef {
+  depth: number;
+}
+
+/** A synset as listed under its hypernym (public.synset_cards). */
+export interface SynsetCard extends SynsetRef {
+  hyponym_count: number;
+  sense_count: number;
+  first_year: number | null;
+  first_label: string | null;
+}
+
+export interface Synset extends SynsetRef {
+  hypernyms: { position: number; hypernym: SynsetRef }[];
+}
+
+export interface StatsOverview {
+  senses: number;
+  words: number;
+  links: number;
+  obsolete: number;
+  pos_changes: number;
+  cross_word: number;
+  median_gap: number | null;
+}
+
+export interface PeriodShiftCount {
+  period: string;
+  period_start: number;
+  shift: ShiftType;
+  senses: number;
+}
+
+export interface ShiftStats {
+  shift: ShiftType;
+  senses: number;
+  obsolete: number;
+  median_gap: number | null;
+  min_gap: number | null;
+  max_gap: number | null;
+  pos_changes: number;
+  cross_word: number;
+}
+
+export interface PosTransition {
+  from_pos: Pos;
+  to_pos: Pos;
+  links: number;
+}
+
+export interface LexiconStats {
+  overview: StatsOverview;
+  periods: PeriodShiftCount[];
+  shifts: ShiftStats[];
+  transitions: PosTransition[];
 }

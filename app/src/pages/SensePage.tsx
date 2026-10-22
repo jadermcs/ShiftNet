@@ -5,9 +5,10 @@ import { ArrowLeft } from 'lucide-react';
 import { fetchAttestations, fetchChildren, fetchSense, fetchWord } from '../lib/api';
 import { branchColor, branchLetter, normalize, plural, senseLabel, senseTag } from '../lib/format';
 import { ancestry, layoutLineage, type GraphItem } from '../lib/graph';
-import type { Attestation, RelationType, Sense, SenseRef } from '../lib/types';
+import type { Attestation, RelationType, Sense, SenseDetail, SenseRef } from '../lib/types';
 import { AttestationList } from '../components/Attestations';
 import { SenseContribute } from '../components/ContributeLinks';
+import { TaxonomyCard } from '../components/Taxonomy';
 import { LineageGraph } from '../components/LineageGraph';
 import { ValidationBadge } from '../components/ValidationBadge';
 import { ShareBar } from '../components/ShareBar';
@@ -118,6 +119,7 @@ export function SensePage() {
           </div>
           <Attestations key={`att-${s.id}`} sense={s} />
           <SenseContribute key={`contrib-${s.id}`} senseId={s.id} />
+          <TaxonomyCard key={`tax-${s.id}`} sense={s} />
           <Relations key={s.id} sense={s} />
         </div>
         <aside className="card mini" aria-label={`Lineage of ${s.lemma}`}>
@@ -187,7 +189,9 @@ function Attestations({ sense: s }: { sense: Sense }) {
   );
 }
 
-function Relations({ sense: s }: { sense: Sense & { relations: { type: RelationType; target_lemma: string }[] } }) {
+/** Relations by word. Hypernyms and hyponyms move to the Taxonomy card once the sense is placed in a synset. */
+function Relations({ sense: s }: { sense: SenseDetail }) {
+  const inTaxonomy = (type: RelationType | 'synonym') => !!s.synset_id && (type === 'hypernym' || type === 'hyponym');
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const groups = RELATION_GROUPS.map(([type, title]) => ({
     type,
@@ -196,7 +200,7 @@ function Relations({ sense: s }: { sense: Sense & { relations: { type: RelationT
       type === 'synonym'
         ? s.synonyms.map((x) => x.lemma).filter((w) => normalize(w) !== normalize(s.lemma))
         : s.relations.filter((r) => r.type === type).map((r) => r.target_lemma),
-  })).filter((g) => g.items.length);
+  })).filter((g) => g.items.length && !inTaxonomy(g.type));
 
   return (
     <section className="card relations" aria-labelledby="rel-h">

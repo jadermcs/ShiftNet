@@ -56,33 +56,52 @@ as $$
   order by up.depth desc
 $$;
 
+-- A synset as listed in the taxonomy: how many hyponyms it has (can it be opened further?)
+-- and its dated senses, with the earliest one's date as recorded.
+create view public.synset_cards
+with (security_invoker = true)
+as
+select s.id, s.pos, s.lemmas, s.gloss,
+  (select count(*)::integer from public.synset_hypernyms c where c.hypernym_id = s.id) as hyponym_count,
+  d.sense_count,
+  d.first_year,
+  d.first_label
+from public.synsets s
+cross join lateral (
+  select count(*)::integer as sense_count,
+    min(x.date_earliest) as first_year,
+    (array_agg(x.date_label order by x.date_earliest, x.id))[1] as first_label
+  from public.senses x
+  where x.synset_id = s.id
+) d;
+
 -- Direct hyponyms of a synset, oldest dated sense first, then undated ones by name.
--- hyponym_count lets the interface show whether a hyponym can be opened further.
 create function public.synset_hyponyms(target text)
-returns table (
-  id text, pos public.part_of_speech, lemmas text[], gloss text,
-  hyponym_count integer, sense_count integer, first_year integer, first_label text
-)
+returns setof public.synset_cards
 language sql
 stable
 set search_path = ''
 as $$
-  select s.id, s.pos, s.lemmas, s.gloss,
-    (select count(*)::integer from public.synset_hypernyms c where c.hypernym_id = s.id),
-    coalesce(d.sense_count, 0),
-    d.first_year,
-    d.first_label
+  select c.*
   from public.synset_hypernyms h
-  join public.synsets s on s.id = h.synset_id
-  left join lateral (
-    select count(*)::integer as sense_count,
-      min(x.date_earliest) as first_year,
-      (array_agg(x.date_label order by x.date_earliest, x.id))[1] as first_label
-    from public.senses x
-    where x.synset_id = s.id
-  ) d on true
+  join public.synset_cards c on c.id = h.synset_id
   where h.hypernym_id = target
-  order by d.first_year nulls last, lower(s.lemmas[1]), s.id
+  order by c.first_year nulls last, lower(c.lemmas[1]), c.id
+$$;
+
+-- Tops of the taxonomy: synsets with hyponyms but no hypernym (entity for nouns, several for verbs).
+-- Synsets with neither, such as adjectives, are left out.
+create function public.synset_roots()
+returns setof public.synset_cards
+language sql
+stable
+set search_path = ''
+as $$
+  select c.*
+  from public.synset_cards c
+  where c.hyponym_count > 0
+    and not exists (select 1 from public.synset_hypernyms h where h.synset_id = c.id)
+  order by c.pos, lower(c.lemmas[1]), c.id
 $$;
 
 -- Statistics. Every figure about change uses the primary parent link (position 0),
@@ -183,11 +202,12 @@ create policy "Synsets are readable by everyone" on public.synsets
 create policy "Hypernym links are readable by everyone" on public.synset_hypernyms
   for select to anon, authenticated using (true);
 
-grant select on public.synsets, public.synset_hypernyms to anon, authenticated;
+grant select on public.synsets, public.synset_hypernyms, public.synset_cards to anon, authenticated;
 
 grant execute on function
   public.synset_path(text),
   public.synset_hyponyms(text),
+  public.synset_roots(),
   public.stats_overview(),
   public.stats_periods(),
   public.stats_shifts(),
