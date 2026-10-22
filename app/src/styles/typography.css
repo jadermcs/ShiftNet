@@ -1,6 +1,7 @@
 :root {
   --sn-font-sans: "IBM Plex Sans", system-ui, sans-serif;
   --sn-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --sn-font-attestation: "JetBrains Mono", ui-monospace, monospace;
 
   --sn-text-display: 600 40px/1.1 var(--sn-font-sans);   /* home headline */
   --sn-text-h1: 600 32px/1.1 var(--sn-font-sans);        /* lemma */
