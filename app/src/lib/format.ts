@@ -1,10 +1,9 @@
 import type { Pos, SenseRef } from './types';
 
-/** Branch palette, in registration order within a word. Mirrors --sn-branch-a…h. */
-export const BRANCH_COLORS = ['#2ec4a6', '#e8b923', '#e040c8', '#3d9be9', '#f08a3c', '#e5484d', '#8bc34a', '#a07cf0'];
 export const BRANCH_LETTERS = 'ABCDEFGH';
 
-export const branchColor = (b: number) => BRANCH_COLORS[((b % 8) + 8) % 8];
+/** Branch palette, in registration order within a word: --sn-branch-a…h, so it follows the theme. */
+export const branchColor = (b: number) => `var(--sn-branch-${BRANCH_LETTERS[((b % 8) + 8) % 8].toLowerCase()})`;
 export const branchLetter = (b: number) => BRANCH_LETTERS[((b % 8) + 8) % 8];
 
 const POS_ABBR: Record<Pos, string> = { noun: 'n.', verb: 'v.', adjective: 'adj.', adverb: 'adv.' };
