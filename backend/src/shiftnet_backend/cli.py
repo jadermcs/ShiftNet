@@ -7,6 +7,8 @@
   shiftnet match <candidate-id> [--sense id]   it is an existing sense
   shiftnet promote <candidate-id> --pos noun --gloss "…" [--parent cloud.n.02 --shift metaphor]
   shiftnet reject <candidate-id> [--note …]
+  shiftnet relations suggest [cloud mouse …]   propose WordNet relations with LexSPLADE (all senses if none given)
+  shiftnet relations show cloud.n.02           the stored suggestions for a sense
 
 All commands use DATABASE_URL (a privileged Postgres connection string).
 """
@@ -136,6 +138,40 @@ def cmd_reject(a):
     return _review(a, lambda conn: reject(conn, a.candidate, a.note))
 
 
+def cmd_relations_suggest(a: argparse.Namespace) -> int:
+    from .discovery.encoder import Encoder
+    from .discovery.relation_store import save_suggestions, suggest
+    from .discovery.relations import RelationSuggester
+
+    suggester = RelationSuggester(Encoder(a.model, device=a.device, batch_size=a.batch_size), per_relation=a.per_relation)
+    with db.transaction(a.database_url) as conn:
+        found = suggest(conn, suggester, a.lemmas or None, min_score=a.min_score)
+        covered = {
+            r["id"] for r in conn.execute(
+                "select id from public.senses where %(all)s or lower(lemma) = any(%(l)s)",
+                {"all": not a.lemmas, "l": [l.lower() for l in a.lemmas]},
+            )
+        }
+        n = save_suggestions(conn, found, suggester.enc.name, covered)
+    by_type: dict[str, int] = {}
+    for x in found:
+        by_type[x.type] = by_type.get(x.type, 0) + 1
+    print(f"Stored {n} suggestions for {len(covered)} senses: " + ", ".join(f"{v} {k}" for k, v in sorted(by_type.items())))
+    return 0
+
+
+def cmd_relations_show(a: argparse.Namespace) -> int:
+    from .discovery.relation_store import list_suggestions
+
+    with db.connect(a.database_url) as conn:
+        rows = list_suggestions(conn, a.sense)
+    for r in rows:
+        t = r["target_sense_id"] or r["target_synset_id"]
+        target = f"  → {t}" if t else ""
+        print(f"{r['type']:<9} {r['target_lemma']:<18} {r['score']:.2f}{target}")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="shiftnet", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--database-url", help="defaults to $DATABASE_URL")
@@ -193,6 +229,19 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--note")
     s.set_defaults(fn=cmd_promote)
 
+    rel = sub.add_parser("relations", help="WordNet relation suggestions").add_subparsers(dest="rel_cmd", required=True)
+    s = rel.add_parser("suggest", help="propose relations with LexSPLADE and store them")
+    s.add_argument("lemmas", nargs="*", help="head words (default: every sense)")
+    s.add_argument("--per-relation", type=int, default=6, help="suggestions per relation type and sense")
+    s.add_argument("--min-score", type=float, default=0.2)
+    s.add_argument("--model", default="jadermcs/lexsplade-bert-large-silver")
+    s.add_argument("--device")
+    s.add_argument("--batch-size", type=int, default=32)
+    s.set_defaults(fn=cmd_relations_suggest)
+    s = rel.add_parser("show", help="stored suggestions for a sense")
+    s.add_argument("sense")
+    s.set_defaults(fn=cmd_relations_show)
+
     s = sub.add_parser("reject", help="discard the candidate")
     s.add_argument("candidate")
     s.add_argument("--note")
@@ -203,6 +252,8 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     a = parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO if a.verbose else logging.WARNING, format="%(message)s")
+    for noisy in ("httpx", "httpcore", "huggingface_hub", "datasets", "urllib3", "fsspec"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
     return a.fn(a)
 
 

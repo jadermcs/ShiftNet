@@ -2,10 +2,13 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { ExternalLink } from 'lucide-react';
 import {
+  RELATION_LABELS,
   contributionState,
+  isRelationProposal,
   isSenseProposal,
   type Contribution,
   type ReferenceInput,
+  type RelationProposal,
   type UsageProposal,
 } from '../lib/contributions';
 import { ChecksList } from './ChecksList';
@@ -42,6 +45,37 @@ export function UsagePreview({ u }: { u: Omit<UsageProposal, 'sense_id'> }) {
   );
 }
 
+/** A proposed relation: sense → relation → word (and the word's sense or synset when given). */
+export function RelationPreview({ c, r }: { c: Contribution; r: RelationProposal }) {
+  const target = r.target_sense_id ?? r.target_synset_id;
+  const edge = c.published?.synset_edge;
+  return (
+    <div className="stack-8">
+      <div className="relation-line">
+        <span className="mono small fg2">{c.sense_id}</span>
+        <span className="chip chip-sm">{r.type ? RELATION_LABELS[r.type].name.toLowerCase() : '?'}</span>
+        <Link to={`/word/${encodeURIComponent(r.target_lemma)}`} className="inline-link strong">
+          {r.target_lemma}
+        </Link>
+        {target && (
+          <Link to={r.target_sense_id ? `/sense/${target}` : `/synset/${encodeURIComponent(target)}`} className="mono small inline-link">
+            {target}
+          </Link>
+        )}
+      </div>
+      {edge && (
+        <div className="small muted">
+          Taxonomy: <span className="mono">{edge.child}</span> placed under <span className="mono">{edge.parent}</span>
+        </div>
+      )}
+      {r.note && <p className="small fg2">{r.note}</p>}
+    </div>
+  );
+}
+
+const KIND_CHIP = { usage: 'Usage', sense: 'New sense', relation: 'Relation' } as const;
+const KIND_LABEL = { usage: 'Proposed usage', sense: 'Proposed sense', relation: 'Proposed relation' } as const;
+
 /** A contribution with its state, content, checks and moderator note. children: actions. */
 export function ContributionCard({
   c,
@@ -54,9 +88,9 @@ export function ContributionCard({
 }) {
   const state = contributionState(c);
   return (
-    <article className="card contribution" aria-label={`${c.kind === 'sense' ? 'Proposed sense' : 'Proposed usage'} of ${c.lemma}`}>
+    <article className="card contribution" aria-label={`${KIND_LABEL[c.kind]} of ${c.lemma}`}>
       <header className="contribution-head">
-        <span className="chip">{c.kind === 'sense' ? 'New sense' : 'Usage'}</span>
+        <span className="chip">{KIND_CHIP[c.kind]}</span>
         <Link to={`/word/${encodeURIComponent(c.lemma)}`} className="contribution-lemma">
           {c.lemma}
         </Link>
@@ -71,7 +105,9 @@ export function ContributionCard({
         </span>
       </header>
 
-      {isSenseProposal(c) ? (
+      {isRelationProposal(c) ? (
+        <RelationPreview c={c} r={c.payload} />
+      ) : isSenseProposal(c) ? (
         <div className="stack-8">
           <div className="small fg2">
             <em>{c.payload.pos}</em> · <span className="mono">{c.payload.date_label}</span> · <span className="chip chip-sm">{c.payload.shift}</span>

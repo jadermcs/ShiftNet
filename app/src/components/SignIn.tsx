@@ -1,12 +1,12 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type ReactNode, type SyntheticEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
-import { LogIn, Mail } from 'lucide-react';
-import { sendSignInEmail, useSession, verifySignInCode } from '../lib/contributions';
+import { Github, LogIn, Mail } from 'lucide-react';
+import { sendSignInEmail, signInWithGitHub, useSession, verifySignInCode } from '../lib/contributions';
 import { Field } from './Field';
 import { Loading } from './States';
 
-/** Email sign-in: a magic link, or the 6-digit code from the same email (for another device). */
+/** GitHub sign-in, or email: a magic link, or the 6-digit code from the same email (for another device). */
 export function SignIn({ intro }: { intro?: ReactNode }) {
   const loc = useLocation();
   const [email, setEmail] = useState('');
@@ -15,7 +15,7 @@ export function SignIn({ intro }: { intro?: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const run = async (e: FormEvent, fn: () => Promise<void>) => {
+  const run = async (e: SyntheticEvent, fn: () => Promise<void>) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
@@ -36,9 +36,22 @@ export function SignIn({ intro }: { intro?: ReactNode }) {
         </h2>
         <p className="muted small">
           {intro ??
-            'Browsing needs no account. To propose usages or senses, sign in with your email address: we send a link and a code, no password.'}
+            'Browsing needs no account. To propose usages or senses, sign in with GitHub or with your email address: we send a link and a code, no password.'}
         </p>
       </div>
+      {!sentTo && (
+        <div>
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            onClick={(e) => run(e, () => signInWithGitHub(loc.pathname + loc.search))}
+          >
+            <Github size={14} aria-hidden="true" />
+            Continue with GitHub
+          </button>
+        </div>
+      )}
       {sentTo ? (
         <form className="stack-10" onSubmit={(e) => run(e, () => verifySignInCode(sentTo, code.trim()))}>
           <p className="small fg2" role="status">

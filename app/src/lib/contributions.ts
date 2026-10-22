@@ -7,7 +7,7 @@ import type { Pos, ReferenceKind, ShiftType, SourceType, ValidationMethod } from
 // Community contributions (public.contributions). Submissions go through RPCs that run the
 // automatic checks server side; see supabase/migrations/20261022140000_contributions.sql.
 
-export type ContributionKind = 'usage' | 'sense';
+export type ContributionKind = 'usage' | 'sense' | 'relation';
 export type ContributionStatus = 'pending' | 'accepted' | 'rejected';
 
 /** One automatic check. error blocks the submission, review sends it to a moderator. */
@@ -55,6 +55,42 @@ export interface SenseProposal {
   usage?: Omit<UsageProposal, 'sense_id'>;
 }
 
+/** WordNet relations a contributor can propose. Synonyms join the sense's synset; the rest go to public.relations. */
+export const RELATION_KINDS = ['hypernym', 'hyponym', 'synonym', 'meronym', 'holonym', 'antonym', 'derived'] as const;
+export type RelationKind = (typeof RELATION_KINDS)[number];
+
+export const RELATION_LABELS: Record<RelationKind, { name: string; hint: string }> = {
+  hypernym: { name: 'Hypernym', hint: 'a broader term (mouse → animal)' },
+  hyponym: { name: 'Hyponym', hint: 'a narrower term (mouse → dormouse)' },
+  synonym: { name: 'Synonym', hint: 'a word with the same meaning in this sense (shiner → black eye)' },
+  meronym: { name: 'Meronym', hint: 'a part of it (mouse → tail)' },
+  holonym: { name: 'Holonym', hint: 'the whole it is part of (mouse, the device → computer)' },
+  antonym: { name: 'Antonym', hint: 'its opposite (nice → nasty)' },
+  derived: { name: 'Derived form', hint: 'a word built from it (cloud → cloudy)' },
+};
+
+/** A proposed relation from a sense to a word, optionally pinned to one of the word's senses or a taxonomy synset. */
+export interface RelationProposal {
+  sense_id: string;
+  type: RelationKind | '';
+  target_lemma: string;
+  target_sense_id?: string;
+  target_synset_id?: string;
+  note?: string;
+}
+
+/** A relation proposed by the LexSPLADE encoder (public.relation_suggestions), shown as a starting point. */
+export interface RelationSuggestion {
+  id: string;
+  sense_id: string;
+  type: Exclude<RelationKind, 'antonym' | 'derived'>;
+  target_lemma: string;
+  target_sense_id: string | null;
+  target_synset_id: string | null;
+  score: number;
+  evidence: Record<string, unknown>;
+}
+
 export interface Contribution {
   id: string;
   contributor_id: string;
@@ -63,7 +99,9 @@ export interface Contribution {
   lemma: string;
   sense_id: string | null;
   attestation_id: string | null;
-  payload: UsageProposal | SenseProposal;
+  payload: UsageProposal | SenseProposal | RelationProposal;
+  /** For a published relation: what was written, so it can be withdrawn. */
+  published?: { table: string; synset_edge?: { child: string; parent: string } } | null;
   checks: Check[];
   validation: Exclude<ValidationMethod, 'editorial'> | null;
   reviewer_id: string | null;
@@ -121,6 +159,15 @@ export async function sendSignInEmail(email: string, redirectPath: string) {
   if (error) throw new Error(error.message);
 }
 
+/** Redirect to GitHub; the PKCE code in the return URL is exchanged by the client (detectSessionInUrl). */
+export async function signInWithGitHub(redirectPath: string) {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'github',
+    options: { redirectTo: window.location.origin + redirectPath },
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function verifySignInCode(email: string, token: string) {
   const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
   if (error) throw new Error(error.message);
@@ -157,6 +204,21 @@ export async function checkSense(p: SenseProposal): Promise<Check[]> {
 
 export async function submitSense(p: SenseProposal): Promise<Contribution> {
   return unwrap(await supabase.rpc('submit_sense', { p }));
+}
+
+export async function checkRelation(p: RelationProposal): Promise<Check[]> {
+  return unwrap(await supabase.rpc('check_relation', { p }));
+}
+
+export async function submitRelation(p: RelationProposal): Promise<Contribution> {
+  return unwrap(await supabase.rpc('submit_relation', { p }));
+}
+
+/** The encoder's suggestions for a sense, strongest first (signed-in users only). */
+export async function fetchRelationSuggestions(senseId: string): Promise<RelationSuggestion[]> {
+  return unwrap(
+    await supabase.from('relation_suggestions').select('*').eq('sense_id', senseId).order('score', { ascending: false }).limit(60),
+  );
 }
 
 // ---------- Reading ----------
@@ -208,3 +270,4 @@ export function compact<T extends object>(o: T): T {
 
 export const isSenseProposal = (c: Contribution): c is Contribution & { payload: SenseProposal } => c.kind === 'sense';
 export const isUsageProposal = (c: Contribution): c is Contribution & { payload: UsageProposal } => c.kind === 'usage';
+export const isRelationProposal = (c: Contribution): c is Contribution & { payload: RelationProposal } => c.kind === 'relation';

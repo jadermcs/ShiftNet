@@ -446,7 +446,6 @@ pre.cite-text { font-size: 12px; line-height: 1.6; }
   font-size: 15px; line-height: 1.5; color: var(--sn-fg-body); text-wrap: pretty;
 }
 .attestation-compact .attestation-quote { font-size: 14px; }
-.attestation, .attestation .mono { font-family: var(--sn-font-attestation); }
 .attestation-quote mark { background: none; color: var(--sn-fg); font-weight: 600; text-decoration: underline; text-decoration-color: var(--sn-line-hover); text-underline-offset: 3px; }
 .attestation-ref { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-left: 12px; font-size: 13px; color: var(--sn-fg-muted); }
 .attestation-ref-full { flex-direction: column; align-items: flex-start; gap: 6px; }
@@ -619,4 +618,18 @@ pre.cite-text { font-size: 12px; line-height: 1.6; }
   .stats-card { padding: 16px; }
   .gap-row { grid-template-columns: 96px minmax(0, 1fr) 76px; gap: 8px; }
   .gap-tick:not(:first-child):not(:last-child) { display: none; }
+}
+
+/* Proposed relations (pages/ProposeRelation.tsx) */
+.relation-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.relation-suggestions { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.suggestion-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.suggestion-row { display: flex; gap: 8px; align-items: baseline; width: 100%; text-align: left; }
+.relation-recorded { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 4px 0 0; }
+.relation-recorded div { display: contents; }
+.relation-recorded dt { font-family: var(--sn-font-mono); color: var(--sn-fg-muted); }
+.relation-recorded dd { margin: 0; }
+.relation-line { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  .relation-layout { grid-template-columns: minmax(0, 1fr); }
 }

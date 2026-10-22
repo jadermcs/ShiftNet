@@ -129,7 +129,7 @@ function UsageForm({ senseId, lemma }: { senseId: string; lemma: string }) {
 }
 
 /** Find a word, then pick one of its senses. */
-function SensePicker({ onPick }: { onPick: (id: string) => void }) {
+export function SensePicker({ onPick, title = 'Which sense does the quote show?' }: { onPick: (id: string) => void; title?: string }) {
   const [q, setQ] = useState('');
   const [lemma, setLemma] = useState('');
   const word = useQuery({ queryKey: ['word', lemma], queryFn: () => fetchWord(lemma), enabled: !!lemma });
@@ -137,7 +137,7 @@ function SensePicker({ onPick }: { onPick: (id: string) => void }) {
   return (
     <section className="card form-card" aria-labelledby="pick-h">
       <h2 id="pick-h" className="form-title">
-        Which sense does the quote show?
+        {title}
       </h2>
       <form
         className="form-row"

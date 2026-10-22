@@ -99,7 +99,37 @@ def get_candidate(candidate_id: str, usages: int = 10) -> dict | None:
     return _read(fn, candidate_id, usages)
 
 
+@server.tool(annotations=READ)
+def get_relation_suggestions(sense_id: str) -> list[dict]:
+    """WordNet relations LexSPLADE proposes for a sense (synonym, hypernym, hyponym, meronym, holonym),
+    with scores and the best-fitting target sense in ShiftNet. Suggestions are not part of the lexicon:
+    contributors propose them on the Contribute page and moderators review them."""
+    from .discovery.relation_store import list_suggestions
+
+    return _read(list_suggestions, sense_id)
+
+
 if WRITE:
+
+    @server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+    async def suggest_relations(lemmas: list[str] | None = None, per_relation: int = 6) -> dict:
+        """Run LexSPLADE over the senses of these head words (every sense when omitted) and store the relation
+        suggestions shown on the Contribute page. Replaces earlier suggestions for those senses. Slow on CPU:
+        about 4 seconds per sense."""
+        from .discovery.relation_store import save_suggestions, suggest
+        from .discovery.relations import RelationSuggester
+
+        def run() -> dict:
+            suggester = RelationSuggester(_encoder(), per_relation=per_relation)
+            with db.transaction() as conn:
+                found = suggest(conn, suggester, lemmas)
+                covered = {r["id"] for r in conn.execute(
+                    "select id from public.senses where %(all)s or lower(lemma) = any(%(l)s)",
+                    {"all": not lemmas, "l": [l.lower() for l in lemmas or []]},
+                )}
+                return {"stored": save_suggestions(conn, found, suggester.enc.name, covered), "senses": len(covered)}
+
+        return await anyio.to_thread.run_sync(run)
 
     @server.tool(annotations=EDIT)
     def save_senses(senses: list[SenseIn]) -> list[str]:

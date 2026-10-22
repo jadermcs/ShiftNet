@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { LogOut, Plus, Quote, ShieldCheck } from 'lucide-react';
+import { GitFork, LogOut, Plus, Quote, ShieldCheck } from 'lucide-react';
 import { fetchMyContributions, signOut, useIsModerator, useSession } from '../lib/contributions';
 import { plural } from '../lib/format';
 import { ContributionCard } from '../components/ContributionCard';
@@ -48,9 +48,10 @@ export function Contribute() {
     <>
       <div className="card page-head">
         <span className="label">Contribute</span>
-        <h1 className="h-page">Propose usages and senses</h1>
+        <h1 className="h-page">Propose usages, senses and relations</h1>
         <p className="muted">
-          Anyone can propose a dated quotation for a sense, or a sense that is missing. Every proposal runs through automatic
+          Anyone can propose a dated quotation for a sense, a sense that is missing, or a WordNet relation (synonym,
+          hypernym, part …) between a sense and another word. Every proposal runs through automatic
           checks (required fields, the word appears in the quote, dates are consistent, the reference is well formed, no
           duplicates). A proposal that passes them all is published straight away; one they flag waits for a moderator.
         </p>
@@ -78,6 +79,10 @@ export function Contribute() {
               <Link to="/contribute/usage" className="btn">
                 <Quote size={14} aria-hidden="true" />
                 Propose a usage
+              </Link>
+              <Link to="/contribute/relation" className="btn">
+                <GitFork size={14} aria-hidden="true" />
+                Propose a relation
               </Link>
               <Link to="/contribute/sense" className="btn btn-primary">
                 <Plus size={14} aria-hidden="true" />

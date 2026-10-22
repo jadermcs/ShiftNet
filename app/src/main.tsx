@@ -16,6 +16,7 @@ import { TaxonomyPage } from './pages/TaxonomyPage';
 import { SynsetPage } from './pages/SynsetPage';
 import { StatsPage } from './pages/StatsPage';
 import { ProposeSense } from './pages/ProposeSense';
+import { ProposeRelation } from './pages/ProposeRelation';
 import { ReviewQueue } from './pages/ReviewQueue';
 import { NotFoundRoute } from './pages/NotFound';
 import './styles/app.css';
@@ -57,6 +58,7 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/contribute" element={<Contribute />} />
               <Route path="/contribute/usage" element={<ProposeUsage />} />
               <Route path="/contribute/sense" element={<ProposeSense />} />
+              <Route path="/contribute/relation" element={<ProposeRelation />} />
               <Route path="/review" element={<ReviewQueue />} />
               <Route path="*" element={<NotFoundRoute />} />
             </Routes>

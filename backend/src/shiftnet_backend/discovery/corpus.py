@@ -51,6 +51,21 @@ def parse_date(v: object) -> date | None:
     return date(int(m[1]), int(m[2]), int(m[3])) if m else None
 
 
+def crawl_date(doc: Doc, dump: str | None = None) -> date | None:
+    """When the page was fetched. Older snapshots have no `date` column, so fall back to the WARC
+    file's timestamp (…/CC-MAIN-20130516092621-…warc.gz), then to the snapshot's year and week."""
+    if d := parse_date(doc.get("date")):
+        return d
+    if m := re.search(r"CC-MAIN-(\d{4})(\d{2})(\d{2})\d{6}", doc.get("file_path") or ""):
+        try:
+            return date(int(m[1]), int(m[2]), int(m[3]))
+        except ValueError:
+            pass
+    if m := re.fullmatch(r"CC-MAIN-(\d{4})-(\d{2})", doc.get("dump") or dump or ""):
+        return date.fromisocalendar(int(m[1]), max(1, min(int(m[2]), 52)), 1)
+    return None
+
+
 def sample_usages(
     docs: Iterable[Doc],
     forms: list[str],
@@ -77,7 +92,7 @@ def sample_usages(
                     doc_id=str(doc.get("id")),
                     dump=doc.get("dump") or dump,
                     url=doc.get("url"),
-                    crawled_on=parse_date(doc.get("date")),
+                    crawled_on=crawl_date(doc, dump),
                     context=occ.context,
                     target_start=occ.start,
                     target_end=occ.end,

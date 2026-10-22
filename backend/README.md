@@ -1,0 +1,129 @@
+# ShiftNet backend
+
+Python tools that write to the ShiftNet database:
+
+- **Models** (`models.py`, `lexicon.py`): typed rows (Pydantic) for senses, parent links, synonyms, relations, sources and attestations, committed with psycopg in one transaction per batch. The checks mirror the database constraints, so bad rows fail before they reach Postgres.
+- **Sense discovery** (`discovery/`): samples a word's usages from [fineweb-edu](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu), encodes each with [LexSPLADE](https://huggingface.co/jadermcs/lexsplade-bert-large-silver), clusters them into candidate senses, and stores the candidates for review.
+- **Relation suggestions** (`discovery/relations.py`): proposes WordNet relations (synonym, hypernym, hyponym, meronym, holonym) for each sense with the same encoder. Contributors pick them up on the Contribute page.
+- **MCP server** (`mcp_server.py`): lets an assistant (Claude Code, Claude Desktop …) browse the lexicon and review candidates: match, promote with a gloss, or reject.
+
+The browser app never uses any of this; it keeps reading through Supabase with the publishable key.
+
+## Setup
+
+```sh
+cd backend
+uv sync --all-extras          # Python 3.12, CPU torch; drop --all-extras for models + CLI import only
+export DATABASE_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres'
+```
+
+`DATABASE_URL` must be a privileged connection (Supabase: *Connect → Session pooler*, or a local `supabase start` at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`). Apply `app/supabase/migrations/20261022150000_sense_discovery.sql` first (`supabase db push`, or paste it into the SQL editor).
+
+## Committing data
+
+```sh
+uv run shiftnet import senses.jsonl            # one sense per line, or a JSON list
+uv run shiftnet import senses.jsonl --dry-run  # validate and write, then roll back
+```
+
+```json
+{"lemma": "cloud", "pos": "noun", "gloss": "remote servers reached over the internet",
+ "date_label": "1990s", "date_earliest": 1990, "shift": "metaphor",
+ "source": "Computing trade press", "source_type": "corpus",
+ "parents": [{"parent_id": "cloud.n.02", "source": "OED"}],
+ "synonyms": ["cloud computing"], "relations": [{"type": "hypernym", "target_lemma": "network"}],
+ "attestations": [{"quote": "Back up your photos to the cloud.", "year": 2009,
+                   "source": {"kind": "website", "title": "example.org", "url": "https://example.org/a"}}]}
+```
+
+Without `id`, a sense gets the next free id (`cloud.n.07`) using the same rule and lock as community contributions. With an existing `id`, it is updated: parents, synonyms and relations are replaced, and attestations are added. A root sense has no parents and every other shift type needs at least one. In Python:
+
+```python
+from shiftnet_backend import db, lexicon
+from shiftnet_backend.models import SenseIn
+
+with db.transaction() as conn:
+    lexicon.save_senses(conn, [SenseIn(...)])
+```
+
+## Sense discovery
+
+```sh
+uv run shiftnet -v discover cloud                      # 200 usages × 8 snapshots, 2013 → 2025, streamed from the Hub
+uv run shiftnet discover troll --forms troll trolls trolling trolled --per-dump 100
+uv run shiftnet discover cloud --dumps CC-MAIN-2013-20 --data-files 'CC-MAIN-2013-20=/data/fineweb-edu/CC-MAIN-2013-20/*.parquet'
+
+uv run shiftnet candidates --lemma cloud               # pending clusters, nearest existing sense
+uv run shiftnet show <candidate-id>                    # terms, crawl years, typical and borderline usages
+uv run shiftnet match <candidate-id> [--sense cloud.n.02]
+uv run shiftnet promote <candidate-id> --pos noun --gloss "…" --parent cloud.n.06 --shift narrowing
+uv run shiftnet reject <candidate-id> --note "proper name"
+```
+
+How a run works:
+
+1. **Sample.** It streams each fineweb-edu snapshot (one config per Common Crawl dump), keeps documents that contain one of the forms (whole word, case-insensitive), and takes the sentence around each match, at most 2 per document. That gives `--per-dump` usages from each snapshot, each with its crawl date and URL.
+2. **Encode.** It wraps the target in `<t> … </t>` and encodes it with LexSPLADE. The model's limit is **64 tokens**, so sentences are trimmed around the target first; otherwise the markers would be cut off and the model would silently return a sentence embedding. Each usage becomes a sparse vector over the BERT vocabulary, so it can be read as words (river bank → *side, water, edge, shore*).
+3. **Cluster.** It runs average-linkage agglomerative clustering on cosine distance, cut where the average similarity drops below `--threshold` (default 0.35). Same-sense pairs score about 0.6–0.9 and different senses about 0.1–0.2. Clusters smaller than `--min-size` are dropped, and their usages join the nearest kept cluster if they are similar enough.
+4. **Describe.** Each cluster gets its strongest centroid terms (the target's own forms are left out), its first and last crawl dates, usages per year, and the closest sense already in the lexicon. That last one comes from encoding the senses' examples and attestation quotes the same way.
+
+Everything is stored in `discovery_runs`, `sense_candidates` and `corpus_usages`. These tables are not readable by `anon` or `authenticated`.
+
+Reviewing:
+
+- **match** quotes the cluster's most typical usages as attestations of the existing sense.
+- **promote** creates the sense (`validation = 'automatic'` by default, `source_type = 'corpus'`), copies 2 usages into its examples, quotes 3 as attestations citing the web page, and records which crawl it was first seen in.
+- **reject** records the decision only.
+
+**About dates.** fineweb-edu starts in 2013, and a crawl date only shows a usage existed *by then*. A promoted sense is dated by its first crawl year unless you pass `--date-label` and `--date-earliest`. Comparing year counts across snapshots is how a recent sense shows up. For older senses, match them rather than promote.
+
+**Cost.** On CPU (8 cores) the encoder handles about 18 usages/s, so 8 × 200 usages take a few minutes, plus streaming time. Clustering is O(n²) in memory and is capped at 6,000 usages per run. Use `--device cuda` on a GPU.
+
+## Relation suggestions
+
+```sh
+uv run shiftnet relations suggest mouse cloud      # or no words: every sense (about 4 s per sense on CPU)
+uv run shiftnet relations show mouse.n.01
+```
+
+LexSPLADE reads a marked word as a weighted list of vocabulary terms. Two readings of that list give relations:
+
+- **Synonyms:** the sense's own vector, built from its gloss, examples and best quotes with the word marked, lists words that could stand in its place. A candidate is kept if putting it back into those contexts gives a similar vector. This can't tell a synonym from a sister term (mouse → rat, cat), so synonym proposals always go to a moderator.
+- **Hypernyms and meronyms:** a `[MASK]` slot in a pattern that carries the gloss ("a mouse (a small rodent …) is a kind of <t> [MASK] </t>"; "a <t> [MASK] </t> is a part of a mouse (…)"). A term counts when it weighs more in its slot than in the sense's own vector and in the other slot. Generic fillers (surface, system) are strong everywhere and cancel out. Hypernyms must also pass the substitution test.
+- **Hyponyms and holonyms:** these are inverses. A hypernym found for *mouse* that is a ShiftNet sense gives that sense a hyponym *mouse*.
+- **Target:** each target is matched to the sense, or taxonomy synset (e.g. `wn-animal-n`), whose definition fits best.
+
+Open English WordNet (`wn`, lexicon `oewn:2024`, downloaded with `python -c "import wn; wn.download('oewn:2024')"`) is used only to lemmatise terms (rodents → rodent) and keep those of the right part of speech. Without it, raw vocabulary terms are used. Only whole words of the BERT vocabulary can come out: *rodent* is split into pieces, so it never appears.
+
+On the 29 seed senses, quality is uneven. Concrete nouns do well (mouse, the animal: hypernyms *animal, pet*; meronyms *tail, head, leg, foot, body, fur*). Metaphorical senses and verbs are weak ("a timid person" still gets *animal*, at 0.56). Scores are therefore evidence for a person, not a decision.
+
+Suggestions are stored in `relation_suggestions`, readable by signed-in users. On the web app, **Contribute → Propose a relation** shows them next to the form, and the automatic checks of `submit_relation` use them. A relation is published at once (validation `automatic`) only when all three hold: the model scores it 0.6 or more, the target word is in ShiftNet, and the contributor has 3+ accepted contributions and none rejected. Everything else goes to the review queue. A published hypernym or hyponym with a target sense or synset also adds the taxonomy edge, unless the parent is already an ancestor. Withdrawing the contribution removes both.
+
+## MCP server
+
+```sh
+DATABASE_URL=… uv run shiftnet-mcp                         # read-only tools, stdio
+DATABASE_URL=… SHIFTNET_MCP_WRITE=1 uv run shiftnet-mcp    # also save_senses, discover_senses, match/promote/reject
+uv run shiftnet-mcp --transport streamable-http            # http://127.0.0.1:8000/mcp
+```
+
+| Tool | Writes |
+| --- | --- |
+| `search_lexicon`, `get_word`, `get_sense` | no |
+| `list_candidates`, `get_candidate`, `get_relation_suggestions` | no |
+| `save_senses`, `add_attestation` | yes |
+| `discover_senses` (slow: streams the corpus, runs the encoder) | yes |
+| `match_candidate`, `promote_candidate`, `reject_candidate` | yes |
+| `suggest_relations` (slow: runs the encoder over the senses) | yes |
+
+Claude Code: `.mcp.json.example` at the repository root registers it. Copy it to `.mcp.json` (gitignored) and set the connection string. A typical session: "run discovery for *stream*, then review the pending candidates". The assistant reads each cluster's usages, matches or rejects it, and drafts glosses for new senses.
+
+## Tests
+
+```sh
+SHIFTNET_PG_BIN=/path/to/postgres/bin uv run pytest     # throwaway server: initdb + pg_ctl
+TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres uv run pytest
+uv run pytest                                           # without either: database tests are skipped
+```
+
+The database tests apply every migration in `app/supabase/migrations` plus `seed.sql` to a fresh database, with Supabase's `auth` schema and roles stubbed. Discovery tests use a bag-of-words stand-in for the encoder. Postgres binaries with contrib (unaccent, pg_trgm, fuzzystrmatch) are needed. Without a system Postgres, the [zonky embedded-postgres binaries](https://repo1.maven.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-linux-amd64/) work: unzip the jar and extract the `.txz`.
