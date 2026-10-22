@@ -1,0 +1,15 @@
+:root {
+  --sn-font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --sn-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --sn-text-display: 600 40px/1.1 var(--sn-font-sans);   /* home headline */
+  --sn-text-h1: 600 32px/1.1 var(--sn-font-sans);        /* lemma */
+  --sn-text-h2: 600 18px/1.3 var(--sn-font-sans);        /* POS group */
+  --sn-text-gloss-lg: 400 19px/1.45 var(--sn-font-sans); /* sense detail definition */
+  --sn-text-body: 400 15px/1.5 var(--sn-font-sans);
+  --sn-text-ui: 400 14px/1.4 var(--sn-font-sans);
+  --sn-text-small: 400 12px/1.4 var(--sn-font-sans);
+  --sn-text-index: 400 17px/1 var(--sn-font-mono);       /* 001, 02 */
+  --sn-text-date: 400 13px/1.2 var(--sn-font-mono);      /* c. 1300 */
+  --sn-text-label: 400 11px/1 var(--sn-font-mono);       /* uppercase column headers, +0.08em */
+}

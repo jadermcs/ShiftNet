@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/lucide-static@0.460.0/font/lucide.css">
+<style>
+html,body{margin:0;background:#0a0a0a;color:#fafafa;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:#fafafa;text-decoration:none}a:hover{color:#2ec4a6}
+::selection{background:#2ec4a655}
+input,select,button{font-family:inherit}
+input[type=range]{accent-color:#2ec4a6}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#262626;border-radius:5px}::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+<div style="display:grid;grid-template-columns:248px minmax(0,1fr);height:100vh;overflow:hidden;background:#0a0a0a">
+  <aside style="border-right:1px solid #1f1f1f;display:flex;flex-direction:column;min-height:0;overflow:auto">
+    <div style="padding:22px 16px 18px;border-bottom:1px solid #1f1f1f;text-align:center;display:flex;flex-direction:column;gap:4px">
+      <div style="font-size:32px;font-weight:700;letter-spacing:-0.03em;line-height:1">ShiftNet</div>
+      <div style="font-size:12px;color:#a3a3a3;line-height:1.4">A WordNet browser for meaning over time</div>
+    </div>
+    <nav style="padding:14px 8px 8px;display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ nav }}" as="n" hint-placeholder-count="3">
+        <button onClick="{{ n.go }}" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:0;border-radius:6px;background:{{ n.bg }};color:#fafafa;font-size:14px;cursor:pointer;text-align:left"><i class="{{ n.icon }}" style="font-size:16px;color:#a3a3a3"></i>{{ n.label }}</button>
+      </sc-for>
+    </nav>
+    <div style="padding:14px 14px 6px;font-size:12px;color:#a3a3a3">Lexicon</div>
+    <div style="padding:0 8px 16px;display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ words }}" as="w" hint-placeholder-count="7">
+        <button onClick="{{ w.go }}" style="display:grid;grid-template-columns:14px 18px 1fr auto;align-items:center;gap:8px;padding:9px 8px;border:0;border-radius:6px;background:{{ w.bg }};color:#fafafa;font-size:14px;cursor:pointer;text-align:left"><i class="icon-chevron-right" style="font-size:13px;color:#8a8a8a"></i><i class="icon-book-open" style="font-size:15px;color:#a3a3a3"></i><span>{{ w.lemma }}</span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#a3a3a3">{{ w.count }}</span></button>
+      </sc-for>
+    </div>
+  </aside>
+  <div style="display:flex;flex-direction:column;min-width:0;min-height:0">
+    <div style="height:44px;border-bottom:1px solid #1f1f1f;display:grid;grid-template-columns:1fr minmax(0,640px) 1fr;align-items:center;padding:0 16px;gap:16px;flex-shrink:0">
+      <i class="icon-panel-left" style="font-size:18px;color:#d4d4d4"></i>
+      <div style="position:relative">
+        <sc-if value="{{ notHome }}" hint-placeholder-val="{{ true }}">
+          <i class="icon-search" style="position:absolute;left:12px;top:9px;color:#a3a3a3;font-size:15px;pointer-events:none"></i>
+          <input ref="{{ topRef }}" value="{{ top.q }}" onChange="{{ top.onChange }}" onKeyDown="{{ top.onKey }}" onFocus="{{ top.onFocus }}" onBlur="{{ top.onBlur }}" placeholder="Search words… (Press /)" aria-label="Search words" style="width:100%;height:32px;padding:0 12px 0 36px;background:#141414;border:1px solid #262626;border-radius:8px;color:#fafafa;font-size:14px;outline:none" style-focus="border-color:#525252">
+          <sc-if value="{{ top.open }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:0;right:0;top:38px;background:#141414;border:1px solid #2a2a2a;border-radius:8px;padding:6px;z-index:20;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:2px">
+              <sc-for list="{{ top.items }}" as="s" hint-placeholder-count="0">
+                <button onMouseDown="{{ s.go }}" style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:baseline;padding:8px 10px;border:0;border-radius:6px;background:{{ s.bg }};color:#fafafa;cursor:pointer;text-align:left;font-size:14px"><span><span style="font-weight:500">{{ s.lemma }}</span> <em style="color:#a3a3a3;font-size:13px">{{ s.pos }}</em></span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#a3a3a3">{{ s.meta }}</span></button>
+              </sc-for>
+              <sc-if value="{{ top.empty }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:8px 10px;font-size:14px;display:flex;flex-direction:column;gap:8px"><span>No results</span><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;color:#a3a3a3;font-size:13px">Close spellings:<sc-for list="{{ top.close }}" as="c" hint-placeholder-count="0"><button onMouseDown="{{ c.go }}" style="border:1px solid #2a2a2a;background:#1a1a1a;color:#fafafa;border-radius:999px;padding:2px 10px;font-size:13px;cursor:pointer">{{ c.lemma }}</button></sc-for></div></div>
+              </sc-if>
+            </div>
+          </sc-if>
+        </sc-if>
+      </div>
+      <i class="icon-moon" style="font-size:17px;color:#d4d4d4;justify-self:end"></i>
+    </div>
+    <div style="height:44px;border-bottom:1px solid #1f1f1f;display:flex;align-items:center;gap:10px;padding:0 24px;font-size:14px;flex-shrink:0">
+      <sc-for list="{{ crumbs }}" as="c" hint-placeholder-count="1">
+        <sc-if value="{{ c.notLast }}" hint-placeholder-val="{{ false }}"><button onClick="{{ c.go }}" style="background:none;border:0;padding:0;color:#d4d4d4;font-size:14px;cursor:pointer" style-hover="color:#fafafa">{{ c.label }}</button><i class="icon-chevron-right" style="font-size:13px;color:#8a8a8a"></i></sc-if>
+        <sc-if value="{{ c.isLast }}" hint-placeholder-val="{{ true }}"><span style="color:#fafafa">{{ c.label }}</span></sc-if>
+      </sc-for>
+    </div>
+    <main ref="{{ mainRef }}" onScroll="{{ onMainScroll }}" style="flex:1;overflow:auto;position:relative;padding:24px">
+      <div style="max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:16px">
+
+        <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+          <div style="width:100%;max-width:760px;margin:0 auto;padding:8vh 0 48px;display:flex;flex-direction:column;gap:36px">
+            <div style="display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#a3a3a3">Open English WordNet, with dates</div>
+              <h1 style="margin:0;font-size:40px;font-weight:600;letter-spacing:-0.02em;line-height:1.1;text-wrap:balance">Every sense has a date and a parent.</h1>
+              <p style="margin:0;color:#a3a3a3;font-size:16px;line-height:1.5;max-width:520px;text-wrap:pretty">Search a word to read its synsets, then switch to the timeline to see which meaning grew out of which.</p>
+            </div>
+            <div style="position:relative">
+              <i class="icon-search" style="position:absolute;left:16px;top:15px;color:#a3a3a3;font-size:18px;pointer-events:none"></i>
+              <input ref="{{ homeRef }}" value="{{ home.q }}" onChange="{{ home.onChange }}" onKeyDown="{{ home.onKey }}" onFocus="{{ home.onFocus }}" onBlur="{{ home.onBlur }}" placeholder="Search a word or expression" aria-label="Search words" style="width:100%;height:50px;padding:0 16px 0 46px;background:#111111;border:1px solid #2a2a2a;border-radius:10px;color:#fafafa;font-size:16px;outline:none" style-focus="border-color:#525252">
+              <sc-if value="{{ home.open }}" hint-placeholder-val="{{ false }}">
+                <div style="position:absolute;left:0;right:0;top:56px;background:#141414;border:1px solid #2a2a2a;border-radius:10px;padding:6px;z-index:20;box-shadow:0 12px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:2px;text-align:left">
+                  <sc-for list="{{ home.items }}" as="s" hint-placeholder-count="0">
+                    <button onMouseDown="{{ s.go }}" style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:baseline;padding:10px 12px;border:0;border-radius:6px;background:{{ s.bg }};color:#fafafa;cursor:pointer;text-align:left;font-size:15px"><span><span style="font-weight:500">{{ s.lemma }}</span> <em style="color:#a3a3a3;font-size:13px">{{ s.pos }}</em></span><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#a3a3a3">{{ s.meta }}</span></button>
+                  </sc-for>
+                  <sc-if value="{{ home.empty }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:8px"><span>No results</span><div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;color:#a3a3a3;font-size:13px">Close spellings:<sc-for list="{{ home.close }}" as="c" hint-placeholder-count="0"><button onMouseDown="{{ c.go }}" style="border:1px solid #2a2a2a;background:#1a1a1a;color:#fafafa;border-radius:999px;padding:2px 10px;font-size:13px;cursor:pointer">{{ c.lemma }}</button></sc-for></div></div>
+                  </sc-if>
+                </div>
+              </sc-if>
+              <div style="display:flex;gap:8px;justify-content:center;align-items:center;margin-top:14px;font-size:13px;color:#a3a3a3;flex-wrap:wrap">Try
+                <sc-for list="{{ tryWords }}" as="t" hint-placeholder-count="5"><button onClick="{{ t.go }}" style="border:1px solid #2a2a2a;background:#141414;color:#fafafa;border-radius:999px;padding:3px 12px;font-size:13px;cursor:pointer" style-hover="border-color:#525252">{{ t.lemma }}</button></sc-for>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;padding:0 2px">
+                <h2 style="margin:0;font-size:16px;font-weight:600">Latest registered senses</h2>
+                <button onClick="{{ goTimeline }}" style="background:none;border:0;padding:0;color:#d4d4d4;font-size:14px;cursor:pointer;display:flex;align-items:center;gap:6px" style-hover="color:#2ec4a6">Open global timeline<i class="icon-arrow-right" style="font-size:14px"></i></button>
+              </div>
+              <sc-for list="{{ recent }}" as="p" hint-placeholder-count="10">
+                <button onClick="{{ p.go }}" style="display:grid;grid-template-columns:52px 1px minmax(0,1fr) auto 16px;gap:14px;align-items:center;padding:12px 16px;background:#111111;border:1px solid #262626;border-radius:10px;color:#fafafa;cursor:pointer;text-align:left" style-hover="border-color:#3a3a3a;background:#141414">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:#d4d4d4">{{ p.n }}</span>
+                  <span style="align-self:stretch;background:#2a2a2a"></span>
+                  <span style="display:flex;flex-direction:column;gap:3px;min-width:0"><span style="font-size:15px"><span style="font-weight:600">{{ p.word }}</span> <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#a3a3a3">{{ p.tag }}</span></span><span style="font-size:13px;color:#a3a3a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.def }}</span></span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#d4d4d4">{{ p.date }}</span>
+                  <i class="icon-chevron-right" style="font-size:16px;color:#8a8a8a"></i>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isResults }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#111111;border:1px solid #262626;border-radius:10px;padding:22px 24px;display:flex;flex-direction:column;gap:6px">
+            <h1 style="margin:0;font-size:24px;font-weight:600">Results for “{{ resQ }}”</h1>
+            <span style="color:#a3a3a3;font-size:14px">{{ resCount }}</span>
+          </div>
+          <sc-for list="{{ results }}" as="p" hint-placeholder-count="3">
+            <button onClick="{{ p.go }}" style="display:grid;grid-template-columns:44px 1px minmax(0,1fr) auto 16px;gap:14px;align-items:center;padding:14px 16px;background:#111111;border:1px solid #262626;border-radius:10px;color:#fafafa;cursor:pointer;text-align:left" style-hover="border-color:#3a3a3a">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:#d4d4d4">{{ p.n }}</span>
+              <span style="align-self:stretch;background:#2a2a2a"></span>
+              <span style="display:flex;flex-direction:column;gap:3px"><span style="font-size:16px;font-weight:600">{{ p.lemma }}</span><em style="font-size:13px;color:#a3a3a3">{{ p.pos }}</em></span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#d4d4d4">{{ p.meta }}</span>
+              <i class="icon-chevron-right" style="font-size:16px;color:#8a8a8a"></i>
+            </button>
+          </sc-for>
+        </sc-if>
+
+        <sc-if value="{{ isWord }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#111111;border:1px solid #262626;border-radius:10px;padding:20px 24px;display:flex;flex-direction:column;gap:14px">
+            <button onClick="{{ goHome }}" style="align-self:flex-start;display:flex;align-items:center;gap:6px;background:none;border:0;color:#d4d4d4;font-size:14px;cursor:pointer;padding:0" style-hover="color:#fafafa"><i class="icon-arrow-left" style="font-size:15px"></i>Back to Home</button>
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <h1 style="margin:0;font-size:32px;font-weight:600;letter-spacing:-0.01em;line-height:1.1">{{ w.lemma }}</h1>
+                <div style="display:flex;gap:18px;flex-wrap:wrap;color:#d4d4d4;font-size:14px">
+                  <span style="display:flex;align-items:center;gap:6px"><i class="icon-tag" style="font-size:14px;color:#a3a3a3"></i>{{ w.posText }}</span>
+                  <span style="display:flex;align-items:center;gap:6px"><i class="icon-git-branch" style="font-size:14px;color:#a3a3a3"></i>{{ w.count }}</span>
+                  <span style="display:flex;align-items:center;gap:6px"><i class="icon-calendar" style="font-size:14px;color:#a3a3a3"></i>{{ w.span }}</span>
+                </div>
+              </div>
+              <div role="tablist" style="display:flex;padding:3px;background:#0a0a0a;border:1px solid #262626;border-radius:8px;gap:2px">
+                <button role="tab" onClick="{{ setSenses }}" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border:0;border-radius:6px;background:{{ segS.bg }};color:{{ segS.fg }};font-size:13px;font-weight:500;cursor:pointer"><i class="icon-list" style="font-size:14px"></i>Senses</button>
+                <button role="tab" onClick="{{ setTimeline }}" style="display:flex;align-items:center;gap:6px;padding:6px 14px;border:0;border-radius:6px;background:{{ segT.bg }};color:{{ segT.fg }};font-size:13px;font-weight:500;cursor:pointer"><i class="icon-git-branch" style="font-size:14px"></i>Timeline</button>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showShare }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:0 4px">
+            <span style="display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#a3a3a3;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="icon-link" style="font-size:14px"></i>{{ url }}</span>
+            <div style="display:flex;gap:8px">
+              <button onClick="{{ copyLink }}" style="display:flex;align-items:center;gap:6px;background:#171717;color:#fafafa;border:1px solid #2a2a2a;border-radius:6px;padding:6px 12px;font-size:13px;font-weight:500;cursor:pointer" style-hover="border-color:#525252"><i class="icon-copy" style="font-size:14px"></i>{{ copyLinkLabel }}</button>
+              <button onClick="{{ toggleCite }}" style="display:flex;align-items:center;gap:6px;background:#fafafa;color:#0a0a0a;border:0;border-radius:6px;padding:6px 12px;font-size:13px;font-weight:500;cursor:pointer" style-hover="background:#e5e5e5"><i class="icon-quote" style="font-size:14px"></i>Cite</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ citeOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#111111;border:1px solid #262626;border-radius:10px;padding:18px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#a3a3a3">APA</span><button onClick="{{ copyApa }}" style="display:flex;align-items:center;gap:6px;background:#171717;color:#fafafa;border:1px solid #2a2a2a;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer"><i class="icon-copy" style="font-size:13px"></i>{{ apaLabel }}</button></div>
+              <div style="background:#0a0a0a;border:1px solid #1f1f1f;border-radius:8px;padding:12px 14px;font-size:13px;line-height:1.55;color:#d4d4d4">{{ citeApa }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#a3a3a3">BibTeX</span><button onClick="{{ copyBib }}" style="display:flex;align-items:center;gap:6px;background:#171717;color:#fafafa;border:1px solid #2a2a2a;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer"><i class="icon-copy" style="font-size:13px"></i>{{ bibLabel }}</button></div>
+              <div style="background:#0a0a0a;border:1px solid #1f1f1f;border-radius:8px;padding:12px 14px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.6;color:#d4d4d4;white-space:pre-wrap">{{ citeBib }}</div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isSenses }}" hint-placeholder-val="{{ false }}">
+          <sc-for list="{{ groups }}" as="g" hint-placeholder-count="2">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:baseline;gap:10px;padding:8px 4px 2px"><h2 style="margin:0;font-size:18px;font-weight:600">{{ g.title }}</h2><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#a3a3a3">{{ g.count }}</span></div>
+              <sc-for list="{{ g.items }}" as="s" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:44px 1px minmax(0,1fr);gap:16px;padding:16px 18px;background:#111111;border:1px solid #262626;border-radius:10px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:17px;color:#d4d4d4;padding-top:1px">{{ s.num }}</span>
+                  <span style="background:#2a2a2a"></span>
+                  <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+                    <div style="display:flex;gap:4px 10px;flex-wrap:wrap;align-items:baseline">
+                      <sc-for list="{{ s.syns }}" as="y" hint-placeholder-count="1"><button onClick="{{ y.go }}" style="background:none;border:0;padding:0;color:#fafafa;font-size:15px;font-weight:600;cursor:pointer" style-hover="color:#2ec4a6">{{ y.w }}</button></sc-for>
+                    </div>
+                    <div style="font-size:15px;line-height:1.5;color:#e5e5e5;text-wrap:pretty">{{ s.def }}</div>
+                    <sc-if value="{{ s.hasEx }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:2px"><sc-for list="{{ s.ex }}" as="e" hint-placeholder-count="1"><em style="font-size:14px;color:#a3a3a3">“{{ e }}”</em></sc-for></div></sc-if>
+                    <div style="display:flex;gap:8px 14px;flex-wrap:wrap;align-items:center;font-size:12px;color:#a3a3a3;padding-top:2px">
+                      <span style="display:flex;align-items:center;gap:6px;font-family:'IBM Plex Mono',monospace;color:#d4d4d4"><span style="width:9px;height:9px;border-radius:50%;background:{{ s.color }}"></span>branch {{ s.letter }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace;color:#d4d4d4">registered {{ s.date }}</span>
+                      <span style="border:1px solid #2a2a2a;border-radius:999px;padding:1px 8px;color:#d4d4d4">{{ s.shift }}</span>
+                      <span>{{ s.from }}</span>
+                      <sc-if value="{{ s.hasObs }}" hint-placeholder-val="{{ false }}"><span style="color:#d4d4d4">obsolete {{ s.obs }}</span></sc-if>
+                      <button onClick="{{ s.go }}" style="margin-left:auto;background:none;border:0;padding:0;color:#d4d4d4;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px" style-hover="color:#2ec4a6">Sense detail<i class="icon-chevron-right" style="font-size:14px"></i></button>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </sc-if>
+
+        <sc-if value="{{ isGlobal }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#111111;border:1px solid #262626;border-radius:10px;padding:22px 24px;display:flex;flex-direction:column;gap:8px">
+            <h1 style="margin:0;font-size:26px;font-weight:600">Global timeline</h1>
+            <p style="margin:0;color:#a3a3a3;font-size:14px;line-height:1.5">Registered senses across the lexicon, newest first. Lines join senses of the same lineage.</p>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showGraph }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#111111;border:1px solid #262626;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;gap:12px 20px;flex-wrap:wrap;align-items:center">
+              <sc-if value="{{ isWordTL }}" hint-placeholder-val="{{ false }}">
+                <label style="display:flex;align-items:center;gap:10px;font-size:13px;color:#d4d4d4"><i class="icon-history" style="font-size:15px;color:#a3a3a3"></i>As of
+                  <input type="range" min="{{ ctl.atMin }}" max="2026" step="1" value="{{ ctl.atVal }}" onChange="{{ ctl.onAt }}" aria-label="Time travel date" style="width:180px">
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;min-width:44px;color:#fafafa">{{ ctl.atLabel }}</span>
+                </label>
+                <div style="display:flex;padding:2px;background:#0a0a0a;border:1px solid #262626;border-radius:7px;gap:2px">
+                  <button onClick="{{ ctl.setAsc }}" style="padding:4px 10px;border:0;border-radius:5px;background:{{ ctl.ascBg }};color:#fafafa;font-size:12px;cursor:pointer">Oldest first</button>
+                  <button onClick="{{ ctl.setDesc }}" style="padding:4px 10px;border:0;border-radius:5px;background:{{ ctl.descBg }};color:#fafafa;font-size:12px;cursor:pointer">Newest first</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ isGlobal }}" hint-placeholder-val="{{ false }}">
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#d4d4d4"><i class="icon-calendar" style="font-size:15px;color:#a3a3a3"></i>Jump to
+                  <select value="" onChange="{{ ctl.onJump }}" style="height:30px;background:#0a0a0a;border:1px solid #262626;border-radius:6px;color:#fafafa;font-size:13px;padding:0 8px"><option value="">Period…</option><sc-for list="{{ ctl.periods }}" as="o" hint-placeholder-count="0"><option value="{{ o }}">{{ o }}</option></sc-for></select>
+                </label>
+              </sc-if>
+              <div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap">
+                <i class="icon-filter" style="font-size:15px;color:#a3a3a3"></i>
+                <sc-for list="{{ ctl.posOpts }}" as="p" hint-placeholder-count="2"><button onClick="{{ p.toggle }}" aria-pressed="{{ p.pressed }}" style="padding:4px 10px;border:1px solid {{ p.bd }};border-radius:999px;background:{{ p.bg }};color:#fafafa;font-size:12px;cursor:pointer">{{ p.label }}</button></sc-for>
+                <select value="" onChange="{{ ctl.onShift }}" aria-label="Add shift type filter" style="height:28px;background:#0a0a0a;border:1px solid #262626;border-radius:6px;color:#fafafa;font-size:12px;padding:0 6px"><option value="">Shift type…</option><sc-for list="{{ ctl.shiftOpts }}" as="o" hint-placeholder-count="0"><option value="{{ o }}">{{ o }}</option></sc-for></select>
+                <input type="number" placeholder="from" value="{{ ctl.fromVal }}" onChange="{{ ctl.onFrom }}" aria-label="From year" style="width:72px;height:28px;background:#0a0a0a;border:1px solid #262626;border-radius:6px;color:#fafafa;font-size:12px;padding:0 8px;font-family:'IBM Plex Mono',monospace">
+                <input type="number" placeholder="to" value="{{ ctl.toVal }}" onChange="{{ ctl.onTo }}" aria-label="To year" style="width:72px;height:28px;background:#0a0a0a;border:1px solid #262626;border-radius:6px;color:#fafafa;font-size:12px;padding:0 8px;font-family:'IBM Plex Mono',monospace">
+              </div>
+            </div>
+            <sc-if value="{{ ctl.hasChips }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;border-top:1px solid #1f1f1f;padding-top:12px">
+                <sc-for list="{{ ctl.chips }}" as="c" hint-placeholder-count="0"><button onClick="{{ c.rm }}" aria-label="Remove filter" style="display:flex;align-items:center;gap:6px;padding:3px 6px 3px 10px;border:1px solid #3a3a3a;border-radius:999px;background:#1a1a1a;color:#fafafa;font-size:12px;cursor:pointer">{{ c.label }}<i class="icon-x" style="font-size:13px;color:#a3a3a3"></i></button></sc-for>
+                <button onClick="{{ ctl.clearAll }}" style="background:none;border:0;color:#a3a3a3;font-size:12px;cursor:pointer;text-decoration:underline">Clear all</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ hasHidden }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#a3a3a3;border-top:1px solid #1f1f1f;padding-top:10px">{{ hiddenNote }}</div></sc-if>
+          </div>
+          <div style="background:#111111;border:1px solid #262626;border-radius:10px;overflow:hidden">
+            <div style="display:grid;grid-template-columns:{{ gridCols }};align-items:center;height:36px;border-bottom:1px solid #262626;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#a3a3a3">
+              <span style="padding-left:12px">Lineage</span><span>Sense</span><span>Shift</span><span style="text-align:right;padding-right:16px">Registered</span>
+            </div>
+            <div style="position:relative" onMouseLeave="{{ clearHover }}">
+              {{ graphEl }}
+              <sc-for list="{{ trows }}" as="r" hint-placeholder-count="6">
+                <sc-if value="{{ r.isSense }}" hint-placeholder-val="{{ true }}">
+                  <div tabIndex="0" onMouseEnter="{{ r.enter }}" onFocus="{{ r.enter }}" onClick="{{ r.go }}" onKeyDown="{{ r.key }}" aria-label="{{ r.aria }}" style="display:grid;grid-template-columns:{{ r.cols }};align-items:center;height:{{ r.h }}px;background:{{ r.tint }};cursor:pointer;outline:none;border-bottom:1px solid #171717" style-focus="box-shadow:inset 0 0 0 1px #737373">
+                    <span></span>
+                    <div style="display:flex;flex-direction:column;gap:3px;min-width:0;padding-right:16px;opacity:{{ r.op }}">
+                      <div style="font-size:14px;color:#fafafa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><sc-if value="{{ r.showWord }}" hint-placeholder-val="{{ false }}"><span style="font-weight:600">{{ r.word }} </span></sc-if>{{ r.def }}</div>
+                      <div style="display:flex;gap:6px;align-items:center;font-size:12px;color:#a3a3a3;white-space:nowrap;overflow:hidden">
+                        <span style="font-family:'IBM Plex Mono',monospace;color:#d4d4d4">{{ r.tag }}</span><span>·</span><span>branch {{ r.letter }}</span><span>·</span><span>{{ r.fromLabel }}</span>
+                        <sc-for list="{{ r.parents }}" as="p" hint-placeholder-count="0"><button onClick="{{ p.go }}" style="background:none;border:0;padding:0;color:#d4d4d4;font-size:12px;cursor:pointer;text-decoration:underline;text-decoration-color:#525252;text-underline-offset:2px" style-hover="color:#2ec4a6">{{ p.label }}</button></sc-for>
+                      </div>
+                    </div>
+                    <span style="opacity:{{ r.op }}"><span style="font-size:12px;padding:2px 9px;border:1px solid #2a2a2a;border-radius:999px;color:#d4d4d4;background:#0a0a0a">{{ r.shift }}</span></span>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;padding-right:16px;opacity:{{ r.op }}"><span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#fafafa">{{ r.date }}</span><sc-if value="{{ r.hasObs }}" hint-placeholder-val="{{ false }}"><span style="font-size:11px;color:#a3a3a3">obsolete {{ r.obs }}</span></sc-if></div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ r.isToday }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:grid;grid-template-columns:{{ r.cols }};align-items:center;height:{{ r.h }}px;border-bottom:1px solid #171717"><span></span><em style="font-size:12px;color:#a3a3a3">{{ r.label }}</em></div>
+                </sc-if>
+                <sc-if value="{{ r.isSep }}" hint-placeholder-val="{{ false }}">
+                  <div id="{{ r.sid }}" style="display:grid;grid-template-columns:{{ r.cols }};align-items:center;height:{{ r.h }}px;background:#0d0d0d;border-bottom:1px solid #1f1f1f"><span></span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;color:#fafafa">{{ r.label }}</span></div>
+                </sc-if>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;padding:12px 16px;border-top:1px solid #262626;font-size:12px;color:#a3a3a3">
+              <span style="display:flex;align-items:center;gap:6px"><svg width="14" height="14"><circle cx="7" cy="7" r="5" fill="#2ec4a6"></circle></svg>in use</span>
+              <span style="display:flex;align-items:center;gap:6px"><svg width="14" height="14"><circle cx="7" cy="7" r="4.5" fill="#0a0a0a" stroke="#e8b923" stroke-width="2"></circle></svg>obsolete, branch ends</span>
+              <span style="display:flex;align-items:center;gap:6px"><svg width="20" height="20"><circle cx="10" cy="10" r="8" fill="none" stroke="#e040c8" stroke-width="1.5"></circle><circle cx="10" cy="10" r="4.5" fill="#e040c8"></circle></svg>merge of two senses</span>
+              <span style="display:flex;align-items:center;gap:6px"><svg width="22" height="10"><line x1="1" y1="5" x2="21" y2="5" stroke="#3d9be9" stroke-width="2" stroke-dasharray="3 4"></line></svg>filtered out</span>
+              <span style="margin-left:auto">Hover or focus a row to trace its ancestry</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isGlobal }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;justify-content:center;align-items:center;gap:12px;padding:4px 0 24px;font-size:13px;color:#a3a3a3">
+            <span>{{ gInfo }}</span>
+            <sc-if value="{{ gMore }}" hint-placeholder-val="{{ false }}"><button onClick="{{ loadMore }}" style="display:flex;align-items:center;gap:6px;background:#171717;color:#fafafa;border:1px solid #2a2a2a;border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer">{{ loadLabel }}</button></sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isSense }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start">
+            <div style="display:flex;flex-direction:column;gap:16px;min-width:0;flex:1 1 520px">
+              <div style="background:#111111;border:1px solid #262626;border-radius:10px;padding:20px 24px;display:flex;flex-direction:column;gap:16px">
+                <button onClick="{{ sd.goWord }}" style="align-self:flex-start;display:flex;align-items:center;gap:6px;background:none;border:0;color:#d4d4d4;font-size:14px;cursor:pointer;padding:0" style-hover="color:#fafafa"><i class="icon-arrow-left" style="font-size:15px"></i>Back to {{ sd.word }}</button>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap"><h1 style="margin:0;font-size:30px;font-weight:600">{{ sd.word }}</h1><span style="font-family:'IBM Plex Mono',monospace;font-size:14px;color:#d4d4d4">{{ sd.tag }}</span><em style="font-size:14px;color:#a3a3a3">{{ sd.pos }}</em></div>
+                  <div style="font-size:19px;line-height:1.45;color:#fafafa;text-wrap:pretty;max-width:720px">{{ sd.def }}</div>
+                  <sc-if value="{{ sd.hasEx }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:2px"><sc-for list="{{ sd.ex }}" as="e" hint-placeholder-count="1"><em style="font-size:15px;color:#a3a3a3">“{{ e }}”</em></sc-for></div></sc-if>
+                </div>
+                <div style="display:grid;grid-template-columns:150px minmax(0,1fr);border-top:1px solid #1f1f1f;font-size:14px">
+                  <span style="padding:11px 0;color:#a3a3a3;border-bottom:1px solid #1f1f1f">Registered</span><span style="padding:11px 0;border-bottom:1px solid #1f1f1f;font-family:'IBM Plex Mono',monospace;font-size:13px">{{ sd.date }}</span>
+                  <span style="padding:11px 0;color:#a3a3a3;border-bottom:1px solid #1f1f1f">Date source</span><span style="padding:11px 0;border-bottom:1px solid #1f1f1f;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.06em;border:1px solid #2a2a2a;border-radius:4px;padding:1px 6px;color:#d4d4d4">{{ sd.srcType }}</span>{{ sd.src }}</span>
+                  <span style="padding:11px 0;color:#a3a3a3;border-bottom:1px solid #1f1f1f">Shift type</span><span style="padding:11px 0;border-bottom:1px solid #1f1f1f"><span style="font-size:12px;padding:2px 9px;border:1px solid #2a2a2a;border-radius:999px;color:#d4d4d4">{{ sd.shift }}</span></span>
+                  <span style="padding:11px 0;color:#a3a3a3;border-bottom:1px solid #1f1f1f">Branch</span><span style="padding:11px 0;border-bottom:1px solid #1f1f1f;display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:13px"><span style="width:10px;height:10px;border-radius:50%;background:{{ sd.color }}"></span>{{ sd.letter }}<sc-if value="{{ sd.hasObs }}" hint-placeholder-val="{{ false }}"><span style="font-family:'IBM Plex Sans',sans-serif;color:#a3a3a3">· obsolete {{ sd.obs }}</span></sc-if></span>
+                  <span style="padding:11px 0;color:#a3a3a3;border-bottom:1px solid #1f1f1f">Parent senses</span>
+                  <div style="padding:9px 0;border-bottom:1px solid #1f1f1f;display:flex;flex-direction:column;gap:4px">
+                    <sc-for list="{{ sd.parents }}" as="p" hint-placeholder-count="1"><button onClick="{{ p.go }}" style="background:none;border:0;padding:2px 0;color:#fafafa;font-size:14px;cursor:pointer;text-align:left;display:flex;gap:8px;align-items:baseline" style-hover="color:#2ec4a6"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#d4d4d4;white-space:nowrap">{{ p.label }}</span><span>{{ p.def }}</span></button></sc-for>
+                    <sc-if value="{{ sd.noParents }}" hint-placeholder-val="{{ false }}"><span style="color:#a3a3a3;padding:2px 0">None, root sense</span></sc-if>
+                  </div>
+                  <span style="padding:11px 0;color:#a3a3a3">Child senses</span>
+                  <div style="padding:9px 0;display:flex;flex-direction:column;gap:4px">
+                    <sc-for list="{{ sd.children }}" as="p" hint-placeholder-count="1"><button onClick="{{ p.go }}" style="background:none;border:0;padding:2px 0;color:#fafafa;font-size:14px;cursor:pointer;text-align:left;display:flex;gap:8px;align-items:baseline" style-hover="color:#2ec4a6"><span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#d4d4d4;white-space:nowrap">{{ p.label }}</span><span>{{ p.def }}</span></button></sc-for>
+                    <sc-if value="{{ sd.noChildren }}" hint-placeholder-val="{{ false }}"><span style="color:#a3a3a3;padding:2px 0">None recorded</span></sc-if>
+                  </div>
+                </div>
+              </div>
+              <div style="background:#111111;border:1px solid #262626;border-radius:10px;padding:18px 24px;display:flex;flex-direction:column;gap:14px">
+                <h2 style="margin:0;font-size:16px;font-weight:600">Relations</h2>
+                <sc-for list="{{ relGroups }}" as="g" hint-placeholder-count="2">
+                  <div style="display:grid;grid-template-columns:150px minmax(0,1fr);gap:12px;align-items:start">
+                    <span style="font-size:14px;color:#a3a3a3;padding-top:3px">{{ g.title }} <span style="font-family:'IBM Plex Mono',monospace;font-size:11px">{{ g.n }}</span></span>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                      <sc-for list="{{ g.items }}" as="i" hint-placeholder-count="3"><button onClick="{{ i.go }}" style="padding:3px 10px;border:1px solid #2a2a2a;border-radius:6px;background:#171717;color:#fafafa;font-size:13px;cursor:pointer" style-hover="border-color:#2ec4a6">{{ i.w }}</button></sc-for>
+                      <sc-if value="{{ g.more }}" hint-placeholder-val="{{ false }}"><button onClick="{{ g.toggle }}" style="padding:3px 10px;border:1px dashed #3a3a3a;border-radius:6px;background:none;color:#d4d4d4;font-size:13px;cursor:pointer">{{ g.moreLabel }}</button></sc-if>
+                    </div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ noRel }}" hint-placeholder-val="{{ false }}"><span style="font-size:14px;color:#a3a3a3">No relations recorded for this synset.</span></sc-if>
+              </div>
+            </div>
+            <div style="background:#111111;border:1px solid #262626;border-radius:10px;overflow:hidden;position:sticky;top:0;flex:1 1 320px;max-width:400px">
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #262626"><span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#a3a3a3">Lineage of {{ sd.word }}</span><button onClick="{{ sd.goTL }}" style="background:none;border:0;padding:0;color:#d4d4d4;font-size:12px;cursor:pointer" style-hover="color:#2ec4a6">Full timeline</button></div>
+              <div style="position:relative" onMouseLeave="{{ clearHover }}">
+                {{ miniEl }}
+                <sc-for list="{{ mrows }}" as="m" hint-placeholder-count="5">
+                  <sc-if value="{{ m.isSense }}" hint-placeholder-val="{{ true }}">
+                    <div tabIndex="0" onClick="{{ m.go }}" onMouseEnter="{{ m.enter }}" onFocus="{{ m.enter }}" onKeyDown="{{ m.key }}" style="display:grid;grid-template-columns:{{ m.cols }};align-items:center;height:{{ m.h }}px;background:{{ m.bg }};cursor:pointer;outline:none" style-focus="box-shadow:inset 0 0 0 1px #737373">
+                      <span></span>
+                      <div style="display:flex;gap:8px;align-items:baseline;min-width:0;padding-right:12px;font-size:12px"><span style="font-family:'IBM Plex Mono',monospace;color:#fafafa;white-space:nowrap">{{ m.tag }}</span><span style="color:#a3a3a3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.def }}</span></div>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ m.isToday }}" hint-placeholder-val="{{ false }}"><div style="display:grid;grid-template-columns:{{ m.cols }};align-items:center;height:{{ m.h }}px"><span></span><em style="font-size:11px;color:#a3a3a3">still in use today</em></div></sc-if>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isAbout }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width:760px;background:#111111;border:1px solid #262626;border-radius:10px;padding:28px 32px;display:flex;flex-direction:column;gap:26px;font-size:15px;line-height:1.6;color:#e5e5e5">
+            <div style="display:flex;flex-direction:column;gap:8px"><h1 style="margin:0;font-size:28px;font-weight:600;color:#fafafa">About &amp; sources</h1><p style="margin:0;text-wrap:pretty">ShiftNet adds dates to Open English WordNet. Each sense carries the date it was first recorded and a link to the sense it grew out of, so a word’s entry reads as a history as well as a list of meanings.</p></div>
+            <div style="display:flex;flex-direction:column;gap:8px"><h2 style="margin:0;font-size:17px;font-weight:600;color:#fafafa">Data sources</h2><p style="margin:0;text-wrap:pretty">Synsets, glosses and relations come from Open English WordNet. Dates and parent links come from historical dictionaries, dated corpora and individual citations. Every date and parent link names its source on the sense page. Dates in this prototype are illustrative.</p></div>
+            <div style="display:flex;flex-direction:column;gap:8px"><h2 style="margin:0;font-size:17px;font-weight:600;color:#fafafa">How dates are assigned</h2><p style="margin:0;text-wrap:pretty">A sense is dated by its earliest recorded use. Dates are shown as recorded: an exact date, a year, a decade or a century, such as <span style="font-family:'IBM Plex Mono',monospace;font-size:13px">c. 1300</span> or <span style="font-family:'IBM Plex Mono',monospace;font-size:13px">16th c.</span> Rows sort by the earliest possible date.</p></div>
+            <div style="display:flex;flex-direction:column;gap:10px"><h2 style="margin:0;font-size:17px;font-weight:600;color:#fafafa">Shift types</h2>
+              <div style="display:grid;grid-template-columns:140px minmax(0,1fr);gap:8px 16px;font-size:14px">
+                <span style="color:#fafafa">broadening</span><span style="color:#a3a3a3">the sense covers more than before</span>
+                <span style="color:#fafafa">narrowing</span><span style="color:#a3a3a3">the sense covers less than before</span>
+                <span style="color:#fafafa">metaphor</span><span style="color:#a3a3a3">transfer based on likeness</span>
+                <span style="color:#fafafa">metonymy</span><span style="color:#a3a3a3">transfer based on association</span>
+                <span style="color:#fafafa">amelioration</span><span style="color:#a3a3a3">the sense becomes more positive</span>
+                <span style="color:#fafafa">pejoration</span><span style="color:#a3a3a3">the sense becomes more negative</span>
+                <span style="color:#fafafa">other</span><span style="color:#a3a3a3">any other change, such as conversion to a new part of speech</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px"><h2 style="margin:0;font-size:17px;font-weight:600;color:#fafafa">How to cite</h2><p style="margin:0">Use the Cite button on any word or sense for APA and BibTeX. For the resource as a whole:</p><div style="background:#0a0a0a;border:1px solid #1f1f1f;border-radius:8px;padding:12px 14px;font-size:13px;color:#d4d4d4">ShiftNet. (2026). ShiftNet: A WordNet browser for meaning over time. https://shiftnet.org</div></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isNF }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width:640px;margin:8vh auto 0;width:100%;background:#111111;border:1px solid #262626;border-radius:10px;padding:28px 32px;display:flex;flex-direction:column;gap:16px">
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#a3a3a3">Not found</span>
+            <h1 style="margin:0;font-size:26px;font-weight:600">No results for “{{ nfQ }}”</h1>
+            <p style="margin:0;color:#a3a3a3;font-size:15px;line-height:1.5">The word or sense is not in the lexicon. Check the spelling or try one of these.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap"><sc-for list="{{ nfClose }}" as="c" hint-placeholder-count="3"><button onClick="{{ c.go }}" style="border:1px solid #2a2a2a;background:#171717;color:#fafafa;border-radius:999px;padding:5px 14px;font-size:14px;cursor:pointer" style-hover="border-color:#2ec4a6">{{ c.lemma }}</button></sc-for></div>
+            <div style="display:flex;gap:8px;border-top:1px solid #1f1f1f;padding-top:16px"><button onClick="{{ goHome }}" style="background:#fafafa;color:#0a0a0a;border:0;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer">Back to search</button><button onClick="{{ goTimeline }}" style="background:#171717;color:#fafafa;border:1px solid #2a2a2a;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:500;cursor:pointer">Browse the global timeline</button></div>
+          </div>
+        </sc-if>
+
+      </div>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;comfortable&quot;,&quot;compact&quot;],&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;rowTint&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;senses&quot;,&quot;timeline&quot;],&quot;default&quot;:&quot;senses&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const BG='#111111';
+const PAL=['#2ec4a6','#e8b923','#e040c8','#3d9be9','#f08a3c','#e5484d','#8bc34a','#a07cf0'];
+const LET='ABCDEFGH';
+const POSA={noun:'n.',verb:'v.',adjective:'adj.',adverb:'adv.'};
+const POSORDER=['noun','verb','adjective','adverb'];
+const SHIFTS=['broadening','narrowing','metaphor','metonymy','amelioration','pejoration','other'];
+const sx=(id,word,pos,y,date,def,o)=>Object.assign({id,word,pos,y,date,def,ex:[],syn:[word],parents:[],shift:'root',obs:null,obsLabel:'',src:'Oxford English Dictionary',srcType:'Dictionary',rel:{}},o||{});
+const S=[
+sx('cloud.n.01','cloud','noun',900,'Old English','a mass of rock; a hill',{obs:1400,obsLabel:'by 15th c.',src:'Oxford English Dictionary, cloud n., sense 1',rel:{hyper:['hill']}}),
+sx('cloud.n.02','cloud','noun',1300,'c. 1300','a visible mass of water or ice particles floating in the atmosphere',{parents:['cloud.n.01'],shift:'metaphor',ex:['the clouds parted and the sun came out'],src:'Middle English Dictionary, cloud n.',rel:{hyper:['atmospheric phenomenon'],hypo:['cirrus','cumulus','stratus','nimbus','cumulonimbus','altocumulus','altostratus','cirrocumulus','cirrostratus','stratocumulus','nimbostratus','thundercloud','rain cloud'],der:['cloudy','cloudless']}}),
+sx('cloud.n.03','cloud','noun',1400,'c. 1400','a large number of things moving together through the air',{parents:['cloud.n.02'],shift:'broadening',syn:['cloud','swarm'],ex:['a cloud of locusts'],src:'Middle English Dictionary, cloud n.',rel:{hyper:['multitude','crowd']}}),
+sx('cloud.n.04','cloud','noun',1500,'16th c.','a state of gloom, trouble or suspicion',{parents:['cloud.n.02'],shift:'metaphor',ex:['he left the company under a cloud'],rel:{hyper:['suspicion','gloom']}}),
+sx('cloud.v.01','cloud','verb',1580,'late 16th c.','to cover or become covered with clouds',{parents:['cloud.n.02'],shift:'other',syn:['cloud','overcast','cloud over'],ex:['the sky clouded over by noon'],rel:{ant:['clear'],der:['clouded']}}),
+sx('cloud.v.02','cloud','verb',1600,'c. 1600','to make unclear, or less able to think clearly',{parents:['cloud.v.01'],shift:'metaphor',syn:['cloud','becloud','obscure','befog'],ex:['anger clouded his judgement'],rel:{hyper:['confuse'],ant:['clarify']}}),
+sx('cloud.n.05','cloud','noun',1970,'1970s','a cloud-shaped symbol standing for an unspecified network in a diagram',{parents:['cloud.n.02'],shift:'metonymy',src:'Telecommunications engineering diagrams',srcType:'Citation',rel:{hyper:['symbol']}}),
+sx('cloud.n.06','cloud','noun',1990,'1990s','remote servers reached over the internet, used to store and process data',{parents:['cloud.n.05','cloud.n.02'],shift:'metaphor',syn:['cloud','cloud computing'],ex:['back up your photos to the cloud'],src:'Computing trade press',srcType:'Corpus',rel:{hyper:['computing infrastructure'],der:['cloud-based']}}),
+sx('mouse.n.01','mouse','noun',800,'Old English','a small rodent with a pointed snout, small ears and a long tail',{ex:['a mouse ran under the stove'],rel:{hyper:['rodent'],hypo:['house mouse','field mouse','harvest mouse','dormouse'],der:['mousy']}}),
+sx('mouse.n.02','mouse','noun',1520,'16th c.','a quiet or timid person',{parents:['mouse.n.01'],shift:'metaphor',ex:['she was too much of a mouse to complain'],rel:{hyper:['person']}}),
+sx('mouse.n.03','mouse','noun',1842,'1840s','a swelling or black eye caused by a blow',{parents:['mouse.n.01'],shift:'metaphor',obs:1950,obsLabel:'mid-20th c.',src:'Old Bailey Proceedings',srcType:'Corpus',syn:['mouse','black eye','shiner']}),
+sx('mouse.n.04','mouse','noun',1965,'1965','a hand-operated device that moves a pointer on a computer screen',{parents:['mouse.n.01'],shift:'metaphor',syn:['mouse','computer mouse'],ex:['click the left mouse button'],src:'Research report on display control, 1965',srcType:'Citation',rel:{hyper:['pointing device'],mero:['mouse button','scroll wheel'],holo:['computer']}}),
+sx('mouse.v.01','mouse','verb',1984,'1980s','to move a pointer or select items using a mouse',{parents:['mouse.n.04'],shift:'other',ex:['mouse over the icon to see its name'],src:'Computing magazines',srcType:'Corpus'}),
+sx('web.n.01','web','noun',850,'Old English','a piece of cloth woven on a loom',{rel:{hyper:['fabric']}}),
+sx('web.n.02','web','noun',1200,'13th c.','a net of fine threads spun by a spider',{parents:['web.n.01'],shift:'metaphor',syn:['web','spiderweb','cobweb'],ex:['a spider was mending its web'],rel:{hyper:['net']}}),
+sx('web.n.03','web','noun',1580,'late 16th c.','an intricate network suggesting something woven',{parents:['web.n.02'],shift:'metaphor',ex:['a web of lies'],rel:{hyper:['network']}}),
+sx('web.n.04','web','noun',1990,'1990','the system of linked documents on the internet',{parents:['web.n.03'],shift:'metaphor',syn:['web','World Wide Web','WWW'],ex:['she found the recipe on the web'],src:'Project proposal, 1990',srcType:'Citation',rel:{hyper:['computer network'],mero:['web page','website'],der:['webby']}}),
+sx('troll.v.01','troll','verb',1606,'17th c.','to fish by trailing a baited line behind a moving boat',{syn:['troll','trawl'],rel:{hyper:['fish']}}),
+sx('troll.n.01','troll','noun',1840,'1840s','a giant or dwarf of Scandinavian folklore living in caves or hills',{rel:{hyper:['mythical being']}}),
+sx('troll.v.02','troll','verb',1992,'1992','to post deliberately provocative messages online',{parents:['troll.v.01'],shift:'metaphor',ex:['he was trolling the forum again'],src:'Usenet archive',srcType:'Corpus',rel:{hyper:['provoke']}}),
+sx('troll.n.02','troll','noun',1993,'1990s','a person who posts provocative messages online to upset others',{parents:['troll.v.02','troll.n.01'],shift:'metonymy',syn:['troll','internet troll'],ex:['don’t feed the trolls'],src:'Usenet archive',srcType:'Corpus',rel:{hyper:['person'],der:['trolling']}}),
+sx('virus.n.01','virus','noun',1390,'late 14th c.','venom, as of a snake; a poisonous substance',{obs:1800,obsLabel:'by 19th c.',src:'Middle English Dictionary, virus n.'}),
+sx('virus.n.02','virus','noun',1892,'1890s','an infective agent that multiplies only inside the living cells of an organism',{parents:['virus.n.01'],shift:'narrowing',src:'Medical journals',srcType:'Corpus',rel:{hyper:['microorganism','infectious agent'],der:['viral']}}),
+sx('virus.n.03','virus','noun',1972,'1970s','a program that copies itself into other programs and spreads between computers',{parents:['virus.n.02'],shift:'metaphor',syn:['virus','computer virus'],ex:['the virus deleted every file'],rel:{hyper:['malware']}}),
+sx('viral.adj.01','viral','adjective',1944,'1940s','of, relating to or caused by a virus',{parents:['virus.n.02'],shift:'other',ex:['a viral infection'],rel:{der:['virus']}}),
+sx('viral.adj.02','viral','adjective',1989,'1980s','spreading quickly from person to person, especially online',{parents:['viral.adj.01'],shift:'metaphor',ex:['the video went viral'],src:'Marketing press',srcType:'Corpus'}),
+sx('nice.adj.01','nice','adjective',1300,'c. 1300','foolish or ignorant',{obs:1600,obsLabel:'by 17th c.',src:'Middle English Dictionary, nice adj.'}),
+sx('nice.adj.02','nice','adjective',1520,'16th c.','requiring great precision or care; subtle',{parents:['nice.adj.01'],shift:'other',ex:['a nice distinction'],syn:['nice','subtle','fine']}),
+sx('nice.adj.03','nice','adjective',1760,'mid-18th c.','pleasant or agreeable',{parents:['nice.adj.02'],shift:'amelioration',ex:['we had a nice time'],syn:['nice','pleasant'],rel:{ant:['nasty'],der:['nicely','niceness']}})
+];
+const BY={}; S.forEach(s=>BY[s.id]=s);
+const WORDS={};
+S.forEach(s=>{(WORDS[s.word]=WORDS[s.word]||[]).push(s);});
+Object.values(WORDS).forEach(l=>{l.sort((a,b)=>a.y-b.y);const c={};l.forEach((s,i)=>{c[s.pos]=(c[s.pos]||0)+1;s.num=c[s.pos];s.tag=POSA[s.pos]+' '+s.num;s.ci=i%8;});});
+S.forEach(s=>{s.children=S.filter(t=>t.parents.includes(s.id)).sort((a,b)=>a.y-b.y).map(t=>t.id);});
+const EXTRA=[{lemma:'cloud computing',pos:'noun',sense:'cloud.n.06'},{lemma:'computer mouse',pos:'noun',sense:'mouse.n.04'},{lemma:'World Wide Web',pos:'noun',sense:'web.n.04'},{lemma:'internet troll',pos:'noun',sense:'troll.n.02'},{lemma:'computer virus',pos:'noun',sense:'virus.n.03'},{lemma:'go viral',pos:'verb',sense:'viral.adj.02'},{lemma:'black eye',pos:'noun',sense:'mouse.n.03'}];
+const N=s=>(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+const lev=(a,b)=>{const m=a.length,n=b.length,d=[];for(let i=0;i<=m;i++){d[i]=[i];}for(let j=1;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n];};
+const cap=s=>s[0].toUpperCase()+s.slice(1);
+const trunc=(t,n)=>t.length>n?t.slice(0,n-1)+'…':t;
+const ord=n=>n+((n%10===1&&n!==11)?'st':(n%10===2&&n!==12)?'nd':(n%10===3&&n!==13)?'rd':'th');
+const period=y=>y<1100?'Old English':y>=1900?(Math.floor(y/10)*10)+'s':ord(Math.floor(y/100)+1)+' century';
+const slug=t=>t.toLowerCase().replace(/[^a-z0-9]+/g,'-');
+const anc=id=>{const set=new Set([id]),st=[id];while(st.length){const x=st.pop();((BY[x]||{}).parents||[]).forEach(p=>{if(!set.has(p)){set.add(p);st.push(p);}});}return set;};
+const suggest=(q,lim)=>{const n=N(q);if(n.length<2)return[];const out=[];
+  Object.keys(WORDS).forEach(w=>{const k=N(w);if(k.includes(n)){const l=WORDS[w];out.push({lemma:w,pos:[...new Set(l.map(s=>s.pos))].join(' · '),meta:l.length+' senses',score:k.startsWith(n)?0:1,r:{name:'word',w}});}});
+  EXTRA.forEach(e=>{const k=N(e.lemma);if(k.includes(n))out.push({lemma:e.lemma,pos:e.pos,meta:'sense of '+BY[e.sense].word,score:k.startsWith(n)?0:2,r:{name:'sense',id:e.sense}});});
+  return out.sort((a,b)=>a.score-b.score||a.lemma.localeCompare(b.lemma)).slice(0,lim||8);};
+const closeSpell=q=>{const n=N(q);const c=[...Object.keys(WORDS).map(w=>({lemma:w,r:{name:'word',w}})),...EXTRA.map(e=>({lemma:e.lemma,r:{name:'sense',id:e.sense}}))];
+  return c.map(x=>Object.assign(x,{d:lev(n,N(x.lemma))})).filter(x=>x.d<=Math.max(2,Math.ceil(n.length/3))).sort((a,b)=>a.d-b.d).slice(0,5);};
+const KEYS=['view','order','at','pos','shift','from','to'];
+const build=r=>{let p='/';
+  if(r.name==='search')p='/search/'+encodeURIComponent(r.q||'');else if(r.name==='word')p='/word/'+encodeURIComponent(r.w);else if(r.name==='sense')p='/sense/'+r.id;else if(r.name==='timeline')p='/timeline';else if(r.name==='about')p='/about';else if(r.name==='notfound')p='/notfound/'+encodeURIComponent(r.q||'');
+  const q=new URLSearchParams();KEYS.forEach(k=>{const v=r[k];if(v!=null&&v!==''&&!(Array.isArray(v)&&!v.length))q.set(k,Array.isArray(v)?v.join(','):v);});
+  const s=q.toString();return p+(s?'?'+s:'');};
+const parse=()=>{const h=(location.hash||'').replace(/^#/,'')||'/';const [path,qs]=h.split('?');const parts=path.split('/').filter(Boolean).map(x=>{try{return decodeURIComponent(x);}catch(e){return x;}});
+  const P=new URLSearchParams(qs||'');const num=k=>P.get(k)?+P.get(k):null;const arr=k=>P.get(k)?P.get(k).split(',').filter(Boolean):[];
+  const r={name:parts[0]||'home',view:P.get('view'),order:P.get('order'),at:num('at'),pos:arr('pos'),shift:arr('shift'),from:num('from'),to:num('to')};
+  if(r.name==='search'||r.name==='notfound')r.q=parts[1]||'';
+  if(r.name==='word'){r.w=(parts[1]||'').toLowerCase();if(!WORDS[r.w])return{name:'notfound',q:parts[1]||'',pos:[],shift:[]};}
+  if(r.name==='sense'){r.id=parts[1];if(!BY[r.id])return{name:'notfound',q:parts[1]||'',pos:[],shift:[]};}
+  if(!['home','search','word','sense','timeline','about','notfound'].includes(r.name))return{name:'notfound',q:parts[0],pos:[],shift:[]};
+  return r;};
+
+function graph(items,o){
+  const h=React.createElement;let y=0;const ys=items.map(it=>{const c=y+it.h/2;y+=it.h;return c;});const H=y;
+  const rowOf={};items.forEach((it,i)=>{if(it.s)rowOf[it.s.id]=i;});
+  const tRow=items.findIndex(it=>it.kind==='today');
+  const ss=items.map((it,i)=>it.s?{s:it.s,i}:null).filter(Boolean);
+  const iv={};ss.forEach(({s,i})=>{iv[s.id]={a:i,b:i};});
+  const ext=(id,r)=>{const v=iv[id];if(r<v.a)v.a=r;if(r>v.b)v.b=r;};
+  ss.forEach(({s,i})=>{const ps=s.parents.filter(p=>p in rowOf);if(ps[0])ext(s.id,rowOf[ps[0]]);ps.slice(1).forEach(p=>ext(p,i));if(o.extend&&tRow>=0&&o.alive(s))ext(s.id,tRow);});
+  const order=ss.map(x=>x.s.id).sort((p,q)=>iv[p].a-iv[q].a||rowOf[p]-rowOf[q]);
+  const ends=[],lane={};
+  order.forEach(id=>{let L=ends.findIndex(e=>e<iv[id].a);if(L<0){L=ends.length;ends.push(0);}ends[L]=iv[id].b;lane[id]=L;});
+  const lw=o.lw||16,pad=o.pad||16;const X=id=>pad+lane[id]*lw;
+  const W=pad*2+(Math.max(1,ends.length)-1)*lw;
+  const hl=o.hl;const op=ok=>hl&&!ok?0.16:1;const inH=id=>!!(hl&&hl.has(id));
+  const E=[],Nd=[];const rh=o.rh;
+  const mk=(key,d,color,ok,dash)=>E.push(h('path',{key,d,fill:'none',stroke:color,strokeWidth:2,strokeLinecap:'round',strokeDasharray:dash?'3 4':undefined,opacity:op(ok)*(dash?0.55:1)}));
+  ss.forEach(({s,i})=>{
+    const c=PAL[s.ci],xc=X(s.id),yc=ys[i],dim=!!(o.dim&&o.dim(s));
+    const ps=s.parents.filter(p=>p in rowOf);
+    ps.forEach((p,j)=>{const a=rowOf[p],xp=X(p),ya=ys[a],dd=Math.sign(yc-ya)||1,k=Math.min(rh*0.8,Math.abs(yc-ya));const ok=inH(p)&&inH(s.id);const pd=!!(o.dim&&o.dim(BY[p]));
+      if(j===0)mk('e'+s.id+p,`M${xp} ${ya} C${xp} ${ya+dd*k*.5} ${xc} ${ya+dd*k*.5} ${xc} ${ya+dd*k} L${xc} ${yc}`,c,ok,dim);
+      else mk('m'+s.id+p,`M${xp} ${ya} L${xp} ${yc-dd*k} C${xp} ${yc-dd*k*.5} ${xc} ${yc-dd*k*.5} ${xc} ${yc}`,PAL[BY[p].ci],ok,dim||pd);});
+    if(o.extend&&tRow>=0&&o.alive(s))mk('x'+s.id,`M${xc} ${yc} L${xc} ${ys[tRow]}`,c,inH(s.id),dim);
+    const outside=s.parents.filter(p=>!(p in rowOf));
+    if(outside.length){const ye=yc+o.past*rh*0.42;E.push(h('path',{key:'s'+s.id,d:`M${xc} ${yc} L${xc} ${ye}`,stroke:c,strokeWidth:2,strokeDasharray:'2 3',opacity:op(inH(s.id))}));Nd.push(h('circle',{key:'so'+s.id,cx:xc,cy:ye,r:2.5,fill:BG,stroke:c,strokeWidth:1.5,opacity:op(inH(s.id))}));}
+    const gone=!o.alive(s);
+    if(ps.length>1)Nd.push(h('circle',{key:'r'+s.id,cx:xc,cy:yc,r:9,fill:BG,stroke:c,strokeWidth:1.5,opacity:op(inH(s.id))}));
+    if(o.cur===s.id)Nd.push(h('circle',{key:'c'+s.id,cx:xc,cy:yc,r:ps.length>1?12:10,fill:'none',stroke:'#fafafa',strokeWidth:1.5}));
+    Nd.push(h('circle',{key:'n'+s.id,cx:xc,cy:yc,r:5.5,fill:gone?BG:c,stroke:c,strokeWidth:2,strokeDasharray:dim?'2 2':undefined,opacity:op(inH(s.id))*(dim?0.6:1)}));
+  });
+  const el=h('svg',{width:W,height:H,'aria-hidden':'true',style:{position:'absolute',left:0,top:0,pointerEvents:'none',overflow:'visible'}},E,Nd);
+  return {el,W,X,rowOf};
+}
+
+class Component extends DCLogic {
+  state={r:parse(),hover:null,tq:'',tOpen:false,tAct:-1,hq:'',hOpen:false,hAct:-1,cite:false,copied:null,gLoaded:12,loading:false,relOpen:{}};
+  homeRef=React.createRef();topRef=React.createRef();mainRef=React.createRef();
+  componentDidMount(){
+    this._hc=()=>this.setState({r:parse(),hover:null,cite:false});
+    window.addEventListener('hashchange',this._hc);
+    this._kd=e=>{const t=(document.activeElement&&document.activeElement.tagName)||'';if(e.key==='/'&&!/INPUT|SELECT|TEXTAREA/.test(t)){e.preventDefault();const el=this.homeRef.current||this.topRef.current;el&&el.focus();}};
+    document.addEventListener('keydown',this._kd);
+    setTimeout(()=>{if(this.state.r.name==='home'&&this.homeRef.current)this.homeRef.current.focus();},60);
+  }
+  componentWillUnmount(){window.removeEventListener('hashchange',this._hc);document.removeEventListener('keydown',this._kd);}
+  nav(r,replace){r=Object.assign({pos:[],shift:[]},r);const hsh='#'+build(r);
+    try{if(replace)history.replaceState(null,'',hsh);else history.pushState(null,'',hsh);}catch(e){}
+    this.setState({r,hover:null,cite:replace?this.state.cite:false,gLoaded:replace?this.state.gLoaded:12});
+    if(!replace&&this.mainRef.current)this.mainRef.current.scrollTop=0;
+    if(r.name==='home')setTimeout(()=>this.homeRef.current&&this.homeRef.current.focus(),30);}
+  setP(patch){this.nav(Object.assign({},this.state.r,patch),true);}
+  copy(txt,key){try{navigator.clipboard.writeText(txt).catch(()=>{});}catch(e){}this.setState({copied:key});clearTimeout(this._ct);this._ct=setTimeout(()=>this.setState({copied:null}),1600);}
+  submitQuery(q){const n=N(q);if(!n)return;if(WORDS[n])return this.nav({name:'word',w:n});const ex=EXTRA.find(e=>N(e.lemma)===n);if(ex)return this.nav({name:'sense',id:ex.sense});
+    if(suggest(q,50).length)return this.nav({name:'search',q});this.nav({name:'notfound',q});}
+  search(k){
+    const q=this.state[k+'q'],act=this.state[k+'Act'],sug=suggest(q),focused=this.state[k+'Open'];
+    const reset={[k+'q']:'',[k+'Open']:false,[k+'Act']:-1};
+    const pick=r=>e=>{e&&e.preventDefault();this.setState(reset);this.nav(r);};
+    return {q,open:focused&&N(q).length>=2,empty:!sug.length,
+      items:sug.map((s,i)=>Object.assign({},s,{bg:i===act?'#222222':'transparent',go:pick(s.r)})),
+      close:closeSpell(q).map(c=>({lemma:c.lemma,go:pick(c.r)})),
+      onChange:e=>this.setState({[k+'q']:e.target.value,[k+'Act']:-1,[k+'Open']:true}),
+      onFocus:()=>this.setState({[k+'Open']:true}),
+      onBlur:()=>setTimeout(()=>this.setState({[k+'Open']:false}),120),
+      onKey:e=>{if(e.key==='ArrowDown'){e.preventDefault();this.setState({[k+'Act']:Math.min(act+1,sug.length-1)});}
+        else if(e.key==='ArrowUp'){e.preventDefault();this.setState({[k+'Act']:Math.max(act-1,-1)});}
+        else if(e.key==='Escape'){e.target.blur();}
+        else if(e.key==='Enter'){e.preventDefault();if(act>=0&&sug[act]){this.setState(reset);this.nav(sug[act].r);}else{this.setState(reset);e.target.blur();this.submitQuery(q);}}}};
+  }
+  renderVals(){
+    const r=this.state.r,st=this.state,hov=st.hover;
+    const rh=this.props.density==='compact'?44:56;const tintOn=this.props.rowTint??true;
+    const goW=(w,view)=>e=>{e&&e.stopPropagation&&e.stopPropagation();this.nav({name:'word',w,view:view||null});};
+    const goS=id=>e=>{e&&e.stopPropagation&&e.stopPropagation();this.nav({name:'sense',id});};
+    const goLemma=w=>e=>{e&&e.stopPropagation&&e.stopPropagation();const k=w.toLowerCase();if(WORDS[k])this.nav({name:'word',w:k});else{const ex=EXTRA.find(x=>N(x.lemma)===N(w));ex?this.nav({name:'sense',id:ex.sense}):this.nav({name:'notfound',q:w});}};
+    const goHome=()=>this.nav({name:'home'}),goTimeline=()=>this.nav({name:'timeline'});
+    const nav=[['home','Home','icon-house',goHome],['timeline','Global timeline','icon-git-branch',goTimeline],['about','About & sources','icon-info',()=>this.nav({name:'about'})]].map(([k,label,icon,go])=>({label,icon,go,bg:r.name===k?'#1c1c1c':'transparent'}));
+    const curWord=r.name==='word'?r.w:r.name==='sense'?BY[r.id].word:null;
+    const words=Object.keys(WORDS).sort().map(w=>({lemma:w,count:WORDS[w].length,bg:curWord===w?'#1c1c1c':'transparent',go:goW(w,'timeline')}));
+    const C=(label,go)=>({label,go});
+    let crumbs=[C('Home',goHome)];
+    if(r.name==='search')crumbs.push(C('Search',null),C('“'+r.q+'”'));
+    if(r.name==='word')crumbs.push(C(r.w,goW(r.w,'senses')),C(cap(r.view||this.props.defaultView||'senses')));
+    if(r.name==='sense'){const s=BY[r.id];crumbs.push(C(s.word,goW(s.word)),C(s.tag));}
+    if(r.name==='timeline')crumbs.push(C('Global timeline'));
+    if(r.name==='about')crumbs.push(C('About & sources'));
+    if(r.name==='notfound')crumbs.push(C('Not found'));
+    crumbs=crumbs.map((c,i)=>Object.assign(c,{notLast:i<crumbs.length-1,isLast:i===crumbs.length-1,go:c.go||(()=>{})}));
+    const byNew=[...S].sort((a,b)=>b.y-a.y||a.id.localeCompare(b.id));
+    const recent=byNew.slice(0,10).map((s,i)=>({n:String(i+1).padStart(3,'0'),word:s.word,tag:s.tag,def:s.def,date:s.date,go:goS(s.id)}));
+    const tryWords=['cloud','mouse','web','troll','nice'].map(w=>({lemma:w,go:goW(w,'timeline')}));
+
+    const match=s=>(!r.pos.length||r.pos.includes(s.pos))&&(!r.shift.length||r.shift.includes(s.shift))&&(r.from==null||s.y>=r.from)&&(r.to==null||s.y<=r.to);
+    const hl=hov?anc(hov):null;
+    const rowBuild=(items,G,o)=>items.map(it=>{
+      const cols=`${Math.max(G.W,96)}px minmax(0,1fr) 140px 150px`;
+      if(it.kind==='today')return{isToday:true,h:it.h,cols,label:o.todayLabel};
+      if(it.kind==='sep')return{isSep:true,h:it.h,cols,label:it.label,sid:'sep-'+slug(it.label)};
+      const s=it.s,c=PAL[s.ci],x=G.X(s.id),m=match(s),gone=!o.alive(s),isH=hov===s.id;
+      const parents=s.parents.map(p=>{const ps=BY[p];const other=ps.word!==s.word||o.global;const missing=!(p in G.rowOf);return{label:(other?ps.word+' ':'')+ps.tag+(missing&&o.global?', '+ps.date:''),go:goS(p)};});
+      const dimmed=hl&&!hl.has(s.id);
+      return{isSense:true,h:it.h,cols,def:s.def,word:s.word,showWord:!!o.global,tag:s.tag,letter:LET[s.ci],shift:s.shift,date:s.date,
+        hasObs:gone&&s.obs!=null,obs:s.obsLabel,parents,fromLabel:parents.length?'from':'root sense',
+        aria:`${s.word} ${s.tag}, ${s.def}, registered ${s.date}, ${parents.length?'from '+parents.map(p=>p.label).join(' and '):'root sense'}`,
+        op:(!m?0.4:1)*(gone?0.72:1)*(dimmed?0.55:1),
+        tint:tintOn?`linear-gradient(90deg, transparent ${x+10}px, ${c}${isH?'38':'1a'} ${x+10}px, ${c}${isH?'14':'06'} 55%, transparent 85%)`:(isH?'#ffffff0a':'transparent'),
+        enter:()=>{if(this.state.hover!==s.id)this.setState({hover:s.id});},go:goS(s.id),key:e=>{if(e.key==='Enter')goS(s.id)();}};
+    });
+    const posOptsFor=list=>POSORDER.filter(p=>list.some(s=>s.pos===p)).map(p=>{const on=r.pos.includes(p);return{label:p,pressed:on?'true':'false',bg:on?'#262626':'transparent',bd:on?'#525252':'#2a2a2a',toggle:()=>this.setP({pos:on?r.pos.filter(x=>x!==p):[...r.pos,p]})};});
+    const chips=[...r.pos.map(p=>({label:'POS: '+p,rm:()=>this.setP({pos:r.pos.filter(x=>x!==p)})})),...r.shift.map(p=>({label:'Shift: '+p,rm:()=>this.setP({shift:r.shift.filter(x=>x!==p)})}))];
+    if(r.from!=null)chips.push({label:'From '+r.from,rm:()=>this.setP({from:null})});
+    if(r.to!=null)chips.push({label:'To '+r.to,rm:()=>this.setP({to:null})});
+    const baseCtl={chips,hasChips:chips.length>0,clearAll:()=>this.setP({pos:[],shift:[],from:null,to:null}),
+      shiftOpts:SHIFTS.filter(x=>!r.shift.includes(x)),onShift:e=>{const v=e.target.value;if(v)this.setP({shift:[...r.shift,v]});},
+      fromVal:r.from==null?'':String(r.from),toVal:r.to==null?'':String(r.to),
+      onFrom:e=>this.setP({from:e.target.value===''?null:+e.target.value}),onTo:e=>this.setP({to:e.target.value===''?null:+e.target.value})};
+
+    const out={nav,words,crumbs,recent,tryWords,goHome,goTimeline,topRef:this.topRef,homeRef:this.homeRef,mainRef:this.mainRef,
+      isHome:r.name==='home',notHome:r.name!=='home',top:this.search('t'),home:this.search('h'),
+      isResults:false,isWord:false,isSenses:false,showGraph:false,isWordTL:false,isGlobal:false,isSense:false,isAbout:r.name==='about',isNF:r.name==='notfound',
+      showShare:false,citeOpen:false,hasHidden:false,clearHover:()=>this.setState({hover:null}),
+      onMainScroll:e=>{if(r.name!=='timeline')return;const t=e.currentTarget;if(t.scrollHeight-t.scrollTop-t.clientHeight<120)this.loadMore();}};
+
+    if(r.name==='search'){const res=suggest(r.q,50);out.isResults=true;out.resQ=r.q;out.resCount=res.length+(res.length===1?' match':' matches');out.results=res.map((s,i)=>({n:String(i+1).padStart(2,'0'),lemma:s.lemma,pos:s.pos,meta:s.meta,go:()=>this.nav(s.r)}));}
+    if(r.name==='notfound'){out.nfQ=r.q;const c=closeSpell(r.q);out.nfClose=(c.length?c:Object.keys(WORDS).slice(0,4).map(w=>({lemma:w,r:{name:'word',w}}))).map(x=>({lemma:x.lemma,go:()=>this.nav(x.r)}));}
+
+    const shareFor=(title,key)=>{const url='https://shiftnet.org/#'+build(r);const d=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+      Object.assign(out,{showShare:true,url:url.replace('https://',''),copyLinkLabel:st.copied==='link'?'Copied':'Copy link',copyLink:()=>this.copy(url,'link'),
+        toggleCite:()=>this.setState({cite:!st.cite}),citeOpen:st.cite,
+        citeApa:`ShiftNet. (2026). ${title}. In ShiftNet: A WordNet browser for meaning over time. Retrieved ${d}, from ${url}`,
+        citeBib:`@misc{shiftnet_${key.replace(/\W/g,'_')},\n  title = {${title}},\n  author = {{ShiftNet}},\n  year = {2026},\n  howpublished = {\\url{${url}}},\n  note = {Accessed ${d}}\n}`});
+      out.apaLabel=st.copied==='apa'?'Copied':'Copy';out.bibLabel=st.copied==='bib'?'Copied':'Copy';
+      out.copyApa=()=>this.copy(out.citeApa,'apa');out.copyBib=()=>this.copy(out.citeBib,'bib');};
+
+    if(r.name==='word'){
+      const list=WORDS[r.w],view=r.view||this.props.defaultView||'senses';
+      out.isWord=true;
+      const pos=POSORDER.filter(p=>list.some(s=>s.pos===p));
+      out.w={lemma:r.w,posText:pos.join(' · '),count:list.length+' senses',span:list[0].date+' – '+list[list.length-1].date};
+      const on={bg:'#fafafa',fg:'#0a0a0a'},off={bg:'transparent',fg:'#d4d4d4'};
+      out.segS=view==='senses'?on:off;out.segT=view==='timeline'?on:off;
+      out.setSenses=()=>this.setP({view:'senses'});out.setTimeline=()=>this.setP({view:'timeline'});
+      shareFor(r.w,r.w);
+      if(view==='senses'){out.isSenses=true;
+        out.groups=pos.map(p=>{const l=list.filter(s=>s.pos===p);return{title:cap(p),count:l.length+(l.length===1?' sense':' senses'),items:l.map(s=>{const pr=s.parents.map(x=>BY[x]);return{
+          num:String(s.num).padStart(2,'0'),syns:s.syn.map(w=>({w,go:goLemma(w)})),def:s.def,ex:s.ex,hasEx:s.ex.length>0,date:s.date,shift:s.shift,color:PAL[s.ci],letter:LET[s.ci],
+          from:pr.length?'from '+pr.map(x=>(x.word!==s.word?x.word+' ':'')+x.tag).join(' + '):'root sense',hasObs:s.obs!=null,obs:s.obsLabel,go:goS(s.id)};})};});}
+      else{
+        out.showGraph=true;out.isWordTL=true;
+        const at=r.at??2026,asc=r.order!=='desc';const alive=s=>!(s.obs!=null&&s.obs<=at);
+        const vis=list.filter(s=>s.y<=at).sort((a,b)=>asc?a.y-b.y:b.y-a.y);
+        const items=vis.map(s=>({kind:'sense',s,h:rh}));const today={kind:'today',h:36};asc?items.push(today):items.unshift(today);
+        const G=graph(items,{rh,extend:true,alive,past:asc?-1:1,hl,dim:s=>!match(s)});
+        out.graphEl=G.el;out.gridCols=`${Math.max(G.W,96)}px minmax(0,1fr) 140px 150px`;
+        out.trows=rowBuild(items,G,{alive,todayLabel:at>=2026?'still in use today':'in use in '+at});
+        const hidden=list.length-vis.length;out.hasHidden=hidden>0;out.hiddenNote=`${hidden} ${hidden===1?'sense':'senses'} registered after ${at} hidden. Obsolete senses are shown hollow.`;
+        out.ctl=Object.assign({},baseCtl,{atMin:list[0].y,atVal:at,atLabel:at>=2026?'Today':String(at),onAt:e=>{const v=+e.target.value;this.setP({at:v>=2026?null:v});},
+          ascBg:asc?'#262626':'transparent',descBg:asc?'transparent':'#262626',setAsc:()=>this.setP({order:null}),setDesc:()=>this.setP({order:'desc'}),posOpts:posOptsFor(list)});
+      }
+    }
+
+    if(r.name==='timeline'){
+      out.isGlobal=true;out.showGraph=true;
+      const loaded=byNew.slice(0,st.gLoaded);const items=[];let last=null;
+      loaded.forEach(s=>{const p=period(s.y);if(p!==last){items.push({kind:'sep',label:p,h:34});last=p;}items.push({kind:'sense',s,h:rh});});
+      const alive=s=>s.obs==null;
+      const G=graph(items,{rh,extend:false,alive,past:1,hl,dim:s=>!match(s)});
+      out.graphEl=G.el;out.gridCols=`${Math.max(G.W,96)}px minmax(0,1fr) 140px 150px`;
+      out.trows=rowBuild(items,G,{alive,global:true});
+      const periods=[...new Set(byNew.map(s=>period(s.y)))];
+      out.ctl=Object.assign({},baseCtl,{periods,posOpts:posOptsFor(S),onJump:e=>{const label=e.target.value;if(!label)return;const idx=byNew.findIndex(s=>period(s.y)===label);
+        this.setState({gLoaded:Math.max(st.gLoaded,idx+8)},()=>requestAnimationFrame(()=>{const el=document.getElementById('sep-'+slug(label)),m=this.mainRef.current;if(el&&m)m.scrollTop+=el.getBoundingClientRect().top-m.getBoundingClientRect().top-16;}));}});
+      out.gInfo=`Showing ${loaded.length} of ${S.length} senses`;out.gMore=loaded.length<S.length;out.loadLabel=st.loading?'Loading…':'Load 50 more';out.loadMore=()=>this.loadMore();
+    }
+
+    if(r.name==='sense'){
+      const s=BY[r.id],list=WORDS[s.word];out.isSense=true;
+      const lab=x=>(x.word!==s.word?x.word+' ':'')+x.tag+' · '+x.date;
+      out.sd={word:s.word,tag:s.tag,pos:s.pos,def:s.def,ex:s.ex,hasEx:s.ex.length>0,date:s.date,srcType:s.srcType,src:s.src,shift:s.shift,color:PAL[s.ci],letter:LET[s.ci],
+        hasObs:s.obs!=null,obs:s.obsLabel,parents:s.parents.map(p=>({label:lab(BY[p]),def:BY[p].def,go:goS(p)})),noParents:!s.parents.length,
+        children:s.children.map(p=>({label:lab(BY[p]),def:BY[p].def,go:goS(p)})),noChildren:!s.children.length,goWord:goW(s.word,'senses'),goTL:goW(s.word,'timeline')};
+      shareFor(`${s.word}, ${s.tag}: ${s.def}`,s.id);
+      const items=list.map(x=>({kind:'sense',s:x,h:34}));items.push({kind:'today',h:26});
+      const alive=x=>x.obs==null;
+      const G=graph(items,{rh:34,extend:true,alive,past:-1,cur:s.id,hl:anc(hov||s.id),lw:14,pad:14});
+      out.miniEl=G.el;
+      out.mrows=items.map(it=>it.s?{isSense:true,h:34,cols:`${G.W}px minmax(0,1fr)`,tag:it.s.tag+' · '+it.s.date,def:it.s.def,bg:it.s.id===s.id?'#1c1c1c':'transparent',go:goS(it.s.id),
+        enter:()=>this.setState({hover:it.s.id}),key:e=>{if(e.key==='Enter')goS(it.s.id)();}}:{isToday:true,h:26,cols:`${G.W}px minmax(0,1fr)`});
+      const REL=[['syn','Synonyms'],['ant','Antonyms'],['hyper','Hypernyms'],['hypo','Hyponyms'],['mero','Meronyms'],['holo','Holonyms'],['der','Derived forms']];
+      out.relGroups=REL.map(([k,t])=>{const arr=k==='syn'?s.syn.filter(w=>N(w)!==N(s.word)):(s.rel[k]||[]);const key=s.id+k,open=!!st.relOpen[key];
+        return{title:t,n:arr.length,items:(open?arr:arr.slice(0,10)).map(w=>({w,go:goLemma(w)})),more:arr.length>10,moreLabel:open?'Show fewer':`Show all ${arr.length}`,toggle:()=>this.setState({relOpen:Object.assign({},st.relOpen,{[key]:!open})})};}).filter(g=>g.n);
+      out.noRel=!out.relGroups.length;
+    }
+    return out;
+  }
+  loadMore(){if(this.state.loading||this.state.gLoaded>=S.length)return;this.setState({loading:true});setTimeout(()=>this.setState(s=>({loading:false,gLoaded:s.gLoaded+50})),600);}
+}
+</script>
+</body>
+</html>

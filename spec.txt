@@ -1,0 +1,3 @@
+I want an application to visualize shiftnet, a wordnet-like application that it should be similar to https://en-word.net/ but enable to see world shift over time.
+
+I want the words listed by the date of the register, new senses born from past senses should be connected in the list similar to a git tree visualizer.

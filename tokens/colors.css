@@ -1,0 +1,33 @@
+:root {
+  /* Neutrals (dark, neutral tone) */
+  --sn-bg: #0a0a0a;          /* page, sidebar, inputs */
+  --sn-bg-sunken: #0d0d0d;   /* year separators */
+  --sn-surface: #111111;     /* cards */
+  --sn-surface-2: #171717;   /* ghost buttons, relation chips */
+  --sn-surface-active: #1c1c1c; /* active nav, current row */
+  --sn-line-soft: #1f1f1f;   /* chrome dividers */
+  --sn-line: #262626;        /* card borders */
+  --sn-line-strong: #2a2a2a; /* control borders */
+  --sn-line-hover: #525252;
+  --sn-fg: #fafafa;
+  --sn-fg-2: #d4d4d4;
+  --sn-fg-muted: #a3a3a3;
+  --sn-fg-faint: #8a8a8a;    /* icons only */
+
+  /* Branch palette — one colour per sense lineage, in registration order */
+  --sn-branch-a: #2ec4a6;
+  --sn-branch-b: #e8b923;
+  --sn-branch-c: #e040c8;
+  --sn-branch-d: #3d9be9;
+  --sn-branch-e: #f08a3c;
+  --sn-branch-f: #e5484d;
+  --sn-branch-g: #8bc34a;
+  --sn-branch-h: #a07cf0;
+
+  /* Semantic */
+  --sn-accent: var(--sn-branch-a);  /* link hover, focus of range */
+  --sn-button-primary-bg: #fafafa;
+  --sn-button-primary-fg: #0a0a0a;
+  --sn-row-tint-alpha: 0.10;        /* branch colour behind a timeline row */
+  --sn-row-tint-alpha-hover: 0.22;
+}

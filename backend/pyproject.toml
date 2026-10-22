@@ -1,0 +1,48 @@
+[project]
+name = "shiftnet-backend"
+version = "0.1.0"
+description = "ShiftNet backend: typed models that commit lexicon data to Postgres, sense discovery over fineweb-edu with LexSPLADE, and an MCP server."
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.8",
+  "psycopg[binary]>=3.2",
+]
+
+[project.optional-dependencies]
+discovery = [
+  "torch>=2.4",
+  "sentence-transformers>=5.1",
+  "datasets>=3.0",
+  "scikit-learn>=1.5",
+  "scipy>=1.13",
+  "numpy>=1.26",
+]
+mcp = ["mcp>=2.3,<3"]
+
+[project.scripts]
+shiftnet = "shiftnet_backend.cli:main"
+shiftnet-mcp = "shiftnet_backend.mcp_server:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "pgserver>=0.1.4"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shiftnet_backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
