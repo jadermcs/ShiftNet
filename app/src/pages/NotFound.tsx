@@ -28,8 +28,8 @@ export function NotFound({ q, crumb = true }: { q: string; crumb?: boolean }) {
         <Link to="/" className="btn btn-primary">
           Back to search
         </Link>
-        <Link to="/timeline" className="btn">
-          Browse the global timeline
+        <Link to="/taxonomy" className="btn">
+          Browse the taxonomy
         </Link>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { fetchRecent } from '../lib/api';
 import { index, senseTag } from '../lib/format';
 import { SearchBox } from '../components/SearchBox';
@@ -36,10 +36,6 @@ export function Home() {
       <section className="stack-10" aria-labelledby="recent-h">
         <div className="section-head">
           <h2 id="recent-h">Latest registered senses</h2>
-          <Link to="/timeline" className="link-quiet">
-            Open global timeline
-            <ArrowRight size={14} aria-hidden="true" />
-          </Link>
         </div>
         {recent.isPending && <Loading rows={4} />}
         {recent.isError && <ErrorState error={recent.error} retry={() => recent.refetch()} />}

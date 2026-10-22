@@ -23,18 +23,6 @@ export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n ==
 export const normalize = (s: string) =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
-const ordinal = (n: number) => {
-  const t = n % 100;
-  if (t >= 11 && t <= 13) return `${n}th`;
-  return n + (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th');
-};
-
-/** Year separator in the global timeline. Same rules as public.period_label. */
-export const periodLabel = (y: number) =>
-  y < 1100 ? 'Old English' : y >= 1900 ? `${Math.floor(y / 10) * 10}s` : `${ordinal(Math.floor(y / 100) + 1)} century`;
-
-export const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
 export const index = (n: number, width: number) => String(n).padStart(width, '0');
 
 export const CURRENT_YEAR = new Date().getFullYear();

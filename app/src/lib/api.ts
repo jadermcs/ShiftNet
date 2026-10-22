@@ -4,7 +4,6 @@ import type {
   CloseSpelling,
   LexiconStats,
   PathStep,
-  Period,
   Sense,
   SenseDetail,
   SenseRef,
@@ -25,8 +24,6 @@ const ATTESTATION = 'id, sense_id, quote, year, date_label, locator, relevance, 
 
 /** Attestations shown on a word page's sense cards. */
 export const TOP_ATTESTATIONS = 3;
-
-export const TIMELINE_PAGE = 50;
 
 function unwrap<T>({ data, error }: { data: unknown; error: { message: string } | null }): T {
   if (error) throw new Error(error.message);
@@ -141,29 +138,6 @@ export async function fetchChildren(id: string): Promise<SenseRef[]> {
       .eq('parent_id', id),
   );
   return rows.map((r) => r.child).sort((a, b) => a.date_earliest - b.date_earliest || a.id.localeCompare(b.id));
-}
-
-/** One page of the global timeline, newest first. */
-export async function fetchTimelinePage(offset: number, size = TIMELINE_PAGE): Promise<Sense[]> {
-  const rows = unwrap<Sense[]>(
-    await supabase
-      .from('senses')
-      .select(SENSE)
-      .order('date_earliest', { ascending: false })
-      .order('id')
-      .range(offset, offset + size - 1),
-  );
-  return rows.map(tidy);
-}
-
-export async function fetchSenseCount(): Promise<number> {
-  const { count, error } = await supabase.from('senses').select('id', { count: 'exact', head: true });
-  if (error) throw new Error(error.message);
-  return count ?? 0;
-}
-
-export async function fetchPeriods(): Promise<Period[]> {
-  return unwrap(await supabase.rpc('timeline_periods'));
 }
 
 export async function searchLemmas(q: string, max = 8): Promise<Suggestion[]> {

@@ -1,7 +1,7 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ancestry, layoutLineage, type GraphItem } from '../lib/graph';
-import { branchColor, branchLetter, senseLabel, senseTag, slug } from '../lib/format';
+import { branchColor, branchLetter, senseLabel, senseTag } from '../lib/format';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import type { Sense } from '../lib/types';
 import { GraphLegend, LineageGraph } from './LineageGraph';
@@ -11,13 +11,10 @@ const tint = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}
 
 export type LineageRow =
   | { kind: 'sense'; sense: Sense; alive: boolean; matches: boolean }
-  | { kind: 'today'; label: string }
-  | { kind: 'sep'; label: string };
+  | { kind: 'today'; label: string };
 
 interface Props {
   rows: LineageRow[];
-  /** Global timeline: show the word in each row and every parent's word. */
-  global?: boolean;
   /** Direction of the past: -1 when oldest rows are on top. */
   pastDir: 1 | -1;
   extendToToday?: boolean;
@@ -25,7 +22,7 @@ interface Props {
 }
 
 /** Senses as rows, with the git-style lineage graph drawn in the first column. */
-export function LineageTable({ rows, global = false, pastDir, extendToToday = false, rowH: rowHProp }: Props) {
+export function LineageTable({ rows, pastDir, extendToToday = false, rowH: rowHProp }: Props) {
   const navigate = useNavigate();
   const narrow = useMediaQuery('(max-width: 720px)');
   const rowH = rowHProp ?? (narrow ? 64 : 56);
@@ -46,7 +43,7 @@ export function LineageTable({ rows, global = false, pastDir, extendToToday = fa
                 dimmed: !r.matches,
               },
             }
-          : { kind: r.kind, h: r.kind === 'sep' ? 34 : 36, label: r.kind === 'sep' ? r.label : '' },
+          : { kind: r.kind, h: 36 },
       ),
     [rows, rowH],
   );
@@ -104,14 +101,6 @@ export function LineageTable({ rows, global = false, pastDir, extendToToday = fa
       <div className="lineage-body" onMouseLeave={() => setHover(null)}>
         <LineageGraph layout={layout} highlight={highlight} />
         {rows.map((r, i) => {
-          if (r.kind === 'sep') {
-            return (
-              <div key={`sep-${r.label}`} id={`sep-${slug(r.label)}`} className="lineage-sep" style={{ gridTemplateColumns: cols, height: 34 }}>
-                <span />
-                <span>{r.label}</span>
-              </div>
-            );
-          }
           if (r.kind === 'today') {
             return (
               <div key="today" className="lineage-today" style={{ gridTemplateColumns: cols, height: 36 }}>
@@ -126,12 +115,7 @@ export function LineageTable({ rows, global = false, pastDir, extendToToday = fa
           const isHover = hover === s.id;
           const dimmed = highlight && !highlight.has(s.id);
           const opacity = (r.matches ? 1 : 0.4) * (r.alive ? 1 : 0.72) * (dimmed ? 0.55 : 1);
-          const parents = s.parents.map((p) => ({
-            id: p.parent.id,
-            label:
-              senseLabel(p.parent, global ? undefined : s.lemma) +
-              (global && !(p.parent.id in layout.rowOf) ? `, ${p.parent.date_label}` : ''),
-          }));
+          const parents = s.parents.map((p) => ({ id: p.parent.id, label: senseLabel(p.parent, s.lemma) }));
           const parentText = parents.length ? `from ${parents.map((p) => p.label).join(' and ')}` : 'root sense';
           return (
             <div
@@ -154,7 +138,6 @@ export function LineageTable({ rows, global = false, pastDir, extendToToday = fa
               <span />
               <div className="lineage-main" style={{ opacity }}>
                 <div className="lineage-gloss">
-                  {global && <strong>{s.lemma} </strong>}
                   {s.gloss}
                 </div>
                 <div className="lineage-meta">

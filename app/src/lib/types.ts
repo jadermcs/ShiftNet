@@ -120,11 +120,6 @@ export interface CloseSpelling {
   sense_id: string | null;
 }
 
-export interface Period {
-  label: string;
-  row_offset: number;
-}
-
 /** A node of the WordNet taxonomy (public.synsets). The first lemma names it. */
 export interface SynsetRef {
   id: string;
