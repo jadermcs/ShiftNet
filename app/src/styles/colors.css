@@ -1,15 +1,25 @@
 :root {
+  color-scheme: dark;
+
   /* Neutrals (dark, neutral tone) */
   --sn-bg: #0a0a0a;          /* page, sidebar, inputs */
   --sn-bg-sunken: #0d0d0d;   /* year separators */
   --sn-surface: #111111;     /* cards */
   --sn-surface-2: #171717;   /* ghost buttons, relation chips */
   --sn-surface-active: #1c1c1c; /* active nav, current row */
+  --sn-surface-input: #141414;  /* search, pills, row hover */
+  --sn-surface-chip: #1a1a1a;   /* chips */
+  --sn-surface-hover: #222222;  /* active suggestion */
+  --sn-skeleton-hi: #161616;    /* skeleton shimmer */
   --sn-line-soft: #1f1f1f;   /* chrome dividers */
+  --sn-line-row: #171717;    /* timeline row dividers */
   --sn-line: #262626;        /* card borders */
   --sn-line-strong: #2a2a2a; /* control borders */
+  --sn-line-chip: #3a3a3a;   /* chip borders, hovered rows */
   --sn-line-hover: #525252;
+  --sn-line-focus: #737373;  /* inset focus ring on rows */
   --sn-fg: #fafafa;
+  --sn-fg-body: #e5e5e5;     /* glosses, prose */
   --sn-fg-2: #d4d4d4;
   --sn-fg-muted: #a3a3a3;
   --sn-fg-faint: #8a8a8a;    /* icons only */
@@ -28,6 +38,51 @@
   --sn-accent: var(--sn-branch-a);  /* link hover, focus of range */
   --sn-button-primary-bg: #fafafa;
   --sn-button-primary-fg: #0a0a0a;
+  --sn-button-primary-hover: #e5e5e5;
+  --sn-selection: color-mix(in srgb, var(--sn-branch-a) 33%, transparent);
+  --sn-scrim: rgba(0, 0, 0, 0.5);
   --sn-row-tint-alpha: 0.10;        /* branch colour behind a timeline row */
   --sn-row-tint-alpha-hover: 0.22;
+}
+
+/* Light theme: same roles, inverted neutrals, branch hues darkened for contrast on white */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --sn-bg: #fafafa;
+  --sn-bg-sunken: #f4f4f4;
+  --sn-surface: #ffffff;
+  --sn-surface-2: #f4f4f4;
+  --sn-surface-active: #ececec;
+  --sn-surface-input: #ffffff;
+  --sn-surface-chip: #f4f4f4;
+  --sn-surface-hover: #ededed;
+  --sn-skeleton-hi: #f0f0f0;
+  --sn-line-soft: #ebebeb;
+  --sn-line-row: #f0f0f0;
+  --sn-line: #e5e5e5;
+  --sn-line-strong: #d9d9d9;
+  --sn-line-chip: #cfcfcf;
+  --sn-line-hover: #a3a3a3;
+  --sn-line-focus: #8a8a8a;
+  --sn-fg: #0a0a0a;
+  --sn-fg-body: #262626;
+  --sn-fg-2: #404040;
+  --sn-fg-muted: #5c5c5c;
+  --sn-fg-faint: #737373;
+
+  --sn-branch-a: #0b8a73;
+  --sn-branch-b: #a87c00;
+  --sn-branch-c: #b8249e;
+  --sn-branch-d: #1a6fbd;
+  --sn-branch-e: #c45f12;
+  --sn-branch-f: #cc2f36;
+  --sn-branch-g: #4f8a17;
+  --sn-branch-h: #7350d0;
+
+  --sn-button-primary-bg: #0a0a0a;
+  --sn-button-primary-fg: #fafafa;
+  --sn-button-primary-hover: #262626;
+  --sn-selection: color-mix(in srgb, var(--sn-branch-a) 22%, transparent);
+  --sn-scrim: rgba(0, 0, 0, 0.25);
 }

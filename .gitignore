@@ -38,3 +38,6 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 __pycache__
 *.pyc
 .pytest_cache
+
+# Claude Code worktrees
+.claude/worktrees

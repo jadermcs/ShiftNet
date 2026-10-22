@@ -6,6 +6,9 @@ import { useMediaQuery } from '../lib/useMediaQuery';
 import type { Sense } from '../lib/types';
 import { GraphLegend, LineageGraph } from './LineageGraph';
 
+/** Branch colour at `pct`% over transparent; works with the CSS-variable palette. */
+const tint = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
+
 export type LineageRow =
   | { kind: 'sense'; sense: Sense; alive: boolean; matches: boolean }
   | { kind: 'today'; label: string }
@@ -139,7 +142,7 @@ export function LineageTable({ rows, global = false, pastDir, extendToToday = fa
               style={{
                 gridTemplateColumns: cols,
                 height: rowH,
-                background: `linear-gradient(90deg, transparent ${x + 10}px, ${color}${isHover ? '38' : '1a'} ${x + 10}px, ${color}${isHover ? '14' : '06'} 55%, transparent 85%)`,
+                background: `linear-gradient(90deg, transparent ${x + 10}px, ${tint(color, isHover ? 22 : 10)} ${x + 10}px, ${tint(color, isHover ? 8 : 2.4)} 55%, transparent 85%)`,
               }}
               aria-label={`${s.lemma} ${senseTag(s)}, ${s.gloss}, registered ${s.date_label}, ${parentText}${r.alive ? '' : ', obsolete'}${r.matches ? '' : ', filtered out'}`}
               onMouseEnter={() => setHover(s.id)}

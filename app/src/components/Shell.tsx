@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link, NavLink, useLocation, useMatch } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BookOpen, ChevronRight, GitBranch, House, Info, MessageSquarePlus, PanelLeft, ShieldCheck } from 'lucide-react';
+import { BookOpen, ChevronRight, GitBranch, House, Info, MessageSquarePlus, Monitor, Moon, PanelLeft, ShieldCheck, Sun } from 'lucide-react';
 import { fetchWords } from '../lib/api';
+import { useTheme, type ThemePref } from '../lib/theme';
 import { useIsModerator, useSession } from '../lib/contributions';
 import { SearchBox } from './SearchBox';
 
@@ -23,6 +24,21 @@ export function useCrumbs(crumbs: Crumb[]) {
 
 /** The scrolling <main>, for infinite scroll and "jump to". */
 export const useMainScroller = () => useContext(MainCtx);
+
+const THEME_ICON = { system: Monitor, light: Sun, dark: Moon };
+const THEME_LABEL: Record<ThemePref, string> = { system: 'System', light: 'Light', dark: 'Dark' };
+
+/** Cycles System → Light → Dark; the icon shows the current choice. */
+function ThemeToggle() {
+  const { pref, next, cycle } = useTheme();
+  const Icon = THEME_ICON[pref];
+  const label = `Theme: ${THEME_LABEL[pref]}. Switch to ${THEME_LABEL[next]}`;
+  return (
+    <button className="icon-btn theme-btn" aria-label={label} title={label} onClick={cycle}>
+      <Icon size={17} aria-hidden="true" />
+    </button>
+  );
+}
 
 function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const words = useQuery({ queryKey: ['words'], queryFn: fetchWords, staleTime: 5 * 60_000 });
@@ -125,7 +141,7 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="content">
             <header className="topbar">
               <button
-                className="icon-btn"
+                className="icon-btn nav-btn"
                 aria-label={navOpen ? 'Close sidebar' : 'Open sidebar'}
                 aria-expanded={navOpen}
                 onClick={() => setNavOpen((o) => !o)}
@@ -135,7 +151,7 @@ export function Shell({ children }: { children: ReactNode }) {
               <div className="topbar-search">
                 {!isHome && <SearchBox size="sm" placeholder="Search words… (Press /)" />}
               </div>
-              <span />
+              <ThemeToggle />
             </header>
             <nav className="crumbs" aria-label="Breadcrumb">
               {trail.map((c, i) => {
