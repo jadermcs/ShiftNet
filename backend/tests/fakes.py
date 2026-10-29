@@ -42,3 +42,33 @@ class FakeEncoder(Encoder):
                 if w in index and w not in ("cloud", "clouds"):
                     m[r, index[w]] += 1.0
         return normalize_rows(sparse.csr_matrix(m))
+
+
+class BagEncoder:
+    """Bulk-stage stand-in: a marked context → counts of the vocabulary words around the target."""
+
+    max_tokens = 64
+
+    def __init__(self, words: list[str]):
+        self.name = "fake/bag-of-words"
+        self.vocab = ["[PAD]", *words]
+        self._index = {w: i for i, w in enumerate(self.vocab)}
+
+    def count_tokens(self, text: str) -> int:
+        return len(text.split()) + 2
+
+    def _bags(self, marked: list[str]) -> sparse.csr_matrix:
+        m = np.zeros((len(marked), len(self.vocab)), dtype=np.float32)
+        for r, text in enumerate(marked):
+            for w in re.findall(r"[a-z]+", re.sub(r"<t>.*?</t>", " ", text).lower()):
+                if w in self._index:
+                    m[r, self._index[w]] += 1.0
+        return sparse.csr_matrix(m)
+
+    def encode_topk(self, marked: list[str], k: int = 128):
+        from shiftnet_backend.discovery.encoder import to_topk
+
+        return to_topk(self._bags(marked), k)
+
+    def encode(self, usages: list[CorpusUsage], show_progress: bool = True) -> sparse.csr_matrix:
+        return normalize_rows(self._bags([u.marked() for u in usages]))

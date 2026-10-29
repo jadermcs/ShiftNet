@@ -79,6 +79,37 @@ Reviewing:
 
 **Cost.** On CPU (8 cores) the encoder handles about 18 usages/s, so 8 × 200 usages take a few minutes, plus streaming time. Clustering is O(n²) in memory and is capped at 6,000 usages per run. Use `--device cuda` on a GPU.
 
+## Bulk sense discovery
+
+`discover` handles one word. `shiftnet bulk` runs the same method for the N most frequent content lemmas of fineweb-edu at once. It is split into stages that read and write one work directory. Each stage can be re-run, and `encode` and `cluster` resume where they stopped.
+
+```sh
+W=/data/shiftnet-bulk
+uv run shiftnet -v bulk download --workdir $W --docs 500000      # first shards of the 8 default snapshots (~20 GB)
+uv run shiftnet -v bulk count    --workdir $W                    # pass 1: every word form, per snapshot
+uv run shiftnet -v bulk vocab    --workdir $W --top 20000        # lemmatise, keep the 20k most frequent content lemmas
+uv run shiftnet -v bulk sample   --workdir $W --per-lemma 2000   # pass 2: 250 usages per lemma and snapshot
+for i in 0 1 2 3; do                                             # one process per GPU
+  CUDA_VISIBLE_DEVICES=$i uv run shiftnet -v bulk encode --workdir $W --shard $i --shards 4 \
+    --device cuda --dtype bfloat16 --batch-size 512 &
+done; wait
+uv run shiftnet -v bulk cluster  --workdir $W                    # resolve ambiguous forms, cluster each lemma
+DATABASE_URL=… uv run shiftnet -v bulk import --workdir $W       # into discovery_runs / sense_candidates
+uv run shiftnet bulk status --workdir $W                         # what each stage has produced
+```
+
+How it works:
+
+1. **Count.** Both corpus passes read local parquet row groups in parallel. A document costs one regex `findall` plus a set intersection with the vocabulary; no Python code runs per word.
+2. **Lemmatise** (`lemmatize.py`), once per word type, not per token. WordNet's morphy covers dictionary words and irregular forms. For everything else (*selfies*, *doomscrolling*), suffix rules are **learnt from the corpus**: each pair morphy can reduce gives a rule (*running → run*: strip `ning`), and a rule needs 20 supporting types. An unknown form takes the rule whose output is the most frequent attested word. On 50k documents it learns `s`, `ing`, `ed`, `ing→e`, `ies→y`, consonant doubling, `a→um`, `i→us` and so on. Function words, numbers, non-ASCII words and lemmas capitalised more than half the time (names) are left out. `--dictionary-only` keeps WordNet lemmas only, which also drops neologisms.
+3. **Ambiguous forms** (*leaves*: leaf | leave; *saw*: saw | see; *left*: left | leave) are offered to every candidate lemma. After encoding, each usage goes to the lemma whose centroid of *unambiguous* usages it is closest to: *leaves* next to branches goes to *leaf*, next to the office to *leave*. A lemma with fewer than 20 unambiguous usages cannot win, so *running* (noun) goes to *run*.
+4. **Sample.** From the counts, every lemma has a keep probability per snapshot that meets its quota on average, so sampling is one pass. Only kept occurrences are cut out (their sentence) and tokenised, in one batched call with offsets, then trimmed to 64 tokens at word boundaries. Each lemma keeps at most 2 usages per document and no repeated context. Usages are stored as memory-mapped Arrow files in `usages/`.
+5. **Encode.** Each GPU process takes a contiguous slice and writes fixed-width top-128 vectors (`uint16` index + `float16` weight, 512 bytes a usage) to memory-mapped `.npy` files, checkpointing every 16k usages. LexSPLADE uses about 225 dimensions per usage, and the top 128 move cosine similarities by at most 0.03. 20k lemmas × 2,000 usages is about 40M usages and 20 GB.
+6. **Cluster.** Average linkage as in `discover` (scipy's nearest-neighbour chain), one process per core. `--min-size` defaults to 10 here. Lemmas with fewer than 50 usages are skipped. Each candidate stores its 15 most typical and 5 most borderline usages. The rest are counted (`usage_count`, `noise_count`) but not stored, so the database gets about 20 usages per candidate instead of 40M rows. Results go to `runs/*.jsonl.gz`.
+7. **Import** skips lemmas already imported under the same `--tag` (default: the work directory's name). For lemmas already in the lexicon, it encodes the existing senses' examples to record each candidate's nearest sense, as `discover` does.
+
+**Cost.** Counting runs at about 0.4M tokens/s per core: 500k documents × 8 snapshots ≈ 4B tokens, so about 10 minutes on 16 cores. Encoding is the bottleneck: about 18 usages/s on 8 CPU cores, roughly 2–4k/s per A100 in bfloat16, so 40M usages take about 3–5 hours on 4 GPUs. Clustering 2,000 usages takes about a second per lemma per core. Plan on about 30 GB of RAM for `sample` (one snapshot's candidates in pandas) and 60 GB of disk.
+
 ## Relation suggestions
 
 ```sh

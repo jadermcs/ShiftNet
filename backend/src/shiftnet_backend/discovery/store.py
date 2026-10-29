@@ -42,7 +42,11 @@ def save_run(conn: psycopg.Connection, r: RunResult) -> UUID:
     run_id = conn.execute(
         """insert into public.discovery_runs (lemma, forms, corpus, dumps, model, params, usage_count, noise_count, finished_at)
            values (%s, %s, %s, %s, %s, %s, %s, %s, now()) returning id""",
-        (r.lemma, r.forms, r.corpus, r.dumps, r.model, Jsonb(r.params), len(r.usages), r.assignments.count(-1)),
+        (
+            r.lemma, r.forms, r.corpus, r.dumps, r.model, Jsonb(r.params),
+            len(r.usages) if r.usage_count is None else r.usage_count,
+            r.assignments.count(-1) if r.noise_count is None else r.noise_count,
+        ),
     ).fetchone()["id"]
 
     cand_ids: dict[int, UUID] = {}

@@ -93,6 +93,28 @@ def occurrences(
                 return
 
 
+def context_at(text: str, start: int, end: int, min_words: int = 6, max_words: int = 48) -> Occurrence | None:
+    """The sentence around text[start:end], whitespace collapsed and at most max_words words on each
+    side of the target, or None when it is too short (headings, menu items). Unlike occurrences(), it
+    does not trim to the encoder: bulk sampling does that for many contexts at once."""
+    s0, s1 = 0, len(text)
+    for m in _SENTENCE_END.finditer(text, max(0, start - 2000), min(len(text), end + 2000)):
+        if m.end() <= start:
+            s0 = m.end()
+        elif m.start() >= end:
+            s1 = m.start()
+            break
+    s0, s1 = max(s0, start - 2000), min(s1, end + 2000)
+    before = _WS.sub(" ", text[s0:start]).lstrip()
+    after = _WS.sub(" ", text[end:s1]).rstrip()
+    left, right = before.split(), after.split()
+    if len(left) + len(right) + 1 < min_words:
+        return None
+    glue_left = "" if before and not before.endswith(" ") else " "
+    glue_right = "" if after and not after.startswith(" ") else " "
+    return _join(left[-max_words:], glue_left, _WS.sub(" ", text[start:end]), glue_right, right[:max_words])
+
+
 def _join(left: list[str], glue_left: str, target: str, glue_right: str, right: list[str]) -> Occurrence:
     pre = " ".join(left) + glue_left if left else ""
     post = glue_right + " ".join(right) if right else ""

@@ -28,7 +28,8 @@ class Clustering:
 def cluster(X: sparse.csr_matrix, threshold: float = 0.35, min_size: int = 5, reassign: bool = True) -> Clustering:
     """X: L2-normalised usage vectors. Clusters smaller than min_size become noise; with reassign,
     a noise usage joins the nearest kept cluster when it is at least `threshold` similar to its centroid."""
-    from sklearn.cluster import AgglomerativeClustering
+    from scipy.cluster.hierarchy import fcluster, linkage
+    from scipy.spatial.distance import squareform
 
     n = X.shape[0]
     if n > MAX_USAGES:
@@ -41,9 +42,9 @@ def cluster(X: sparse.csr_matrix, threshold: float = 0.35, min_size: int = 5, re
         sim = (X @ X.T).toarray()
         dist = np.clip(1 - sim, 0, 2)
         np.fill_diagonal(dist, 0)
-        raw = AgglomerativeClustering(
-            n_clusters=None, metric="precomputed", linkage="average", distance_threshold=1 - threshold
-        ).fit_predict(dist)
+        # Average linkage by nearest-neighbour chain: O(n²) time, far quicker than scikit-learn's.
+        z = linkage(squareform(dist, checks=False), method="average")
+        raw = fcluster(z, t=np.nextafter(1 - threshold, 0), criterion="distance")
 
     ids, counts = np.unique(raw, return_counts=True)
     kept = [i for i, c in sorted(zip(ids, counts), key=lambda t: -t[1]) if c >= min_size]

@@ -261,6 +261,9 @@ class RunResult(BaseModel):
     assignments: list[int]  # per usage: cluster number, or -1 for noise
     similarities: list[float | None]
     usage_terms: list[list[Term]]
+    # When only some usages are stored (bulk runs keep each cluster's typical and borderline ones):
+    usage_count: int | None = None  # all usages clustered
+    noise_count: int | None = None  # of which unclustered
 
 
 class PromoteIn(Row):
