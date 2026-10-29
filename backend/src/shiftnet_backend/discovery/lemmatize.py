@@ -87,22 +87,30 @@ def learn(
     min_support: int = 20,
     min_ratio: float = 0.1,
     min_stem: int = 3,
+    capitalised: Mapping[str, int] | None = None,
+    name_share: float = 0.9,
 ) -> Lemmas:
     """Lemmas of every form seen at least min_count times.
 
     A learnt rule needs min_support types behind it. An unknown form reduced by a rule needs its lemma
     attested at least min_count times and at least min_ratio as often as the form itself, and the
-    stem left after stripping must be min_stem letters or more.
+    stem left after stripping must be min_stem letters or more. Forms capitalised more than
+    name_share of the time are names (Staten 1.0, Welles 1.0; not States 0.66) and keep their own
+    form, as do function words.
     """
     of: dict[str, set[str]] = {}
     dictionary: set[str] = set()
     unknown: list[str] = []
+    kept = 0
     support: Counter[tuple[str, str]] = Counter()
     for form, n in counts.items():
         if n < min_count:
             continue
-        if form in FUNCTION_WORDS:  # morphy reads "after" as a comparative of "aft"
+        # Function words and names stay as they are: morphy reads "after" as a comparative of
+        # "aft" and "Welles" as a form of "well".
+        if form in FUNCTION_WORDS or (capitalised and capitalised.get(form, 0) > name_share * n):
             of[form] = {form}
+            kept += 1
             continue
         found = morphy(form) if morphy else None
         if not found:
@@ -135,8 +143,9 @@ def learn(
                 if lemma != form and n >= floor and n > best_n:
                     best, best_n = lemma, n
         of[form] = {best}
-    log.info("%d forms: %d in WordNet, %d learnt rules, %d reduced by rule", len(of), len(of) - len(unknown),
-             len(rules), sum(1 for f in unknown if of[f] != {f}))
+    log.info("%d forms: %d kept as they are (function words, names), %d in WordNet, %d learnt rules, "
+             "%d reduced by rule", len(of), kept, len(of) - len(unknown) - kept, len(rules),
+             sum(1 for f in unknown if of[f] != {f}))
     family: Counter[str] = Counter()  # occurrences of all the forms that can reduce to a lemma
     for f, ls in of.items():
         for l in ls:
@@ -152,7 +161,7 @@ def vocabulary(
     lemmas: Lemmas,
     counts: Mapping[str, int],
     capitalised: Mapping[str, int],
-    top: int,
+    top: int | None,
     min_length: int = 3,
     max_capitalised: float = 0.5,
     dictionary_only: bool = False,

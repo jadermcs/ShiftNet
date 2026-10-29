@@ -229,8 +229,18 @@ def build_vocab(
     t = pq.read_table(workdir / "counts.parquet").to_pydict()
     counts = dict(zip(t["form"], t["total"]))
     capitalised = dict(zip(t["form"], t["capitalised"]))
-    lemmas = learn(counts, morphy if morphy is not None else wordnet_morphy(lexicon), min_count=min_count)
-    chosen = vocabulary(lemmas, counts, capitalised, top, max_capitalised=max_capitalised, dictionary_only=dictionary_only)
+    lemmas = learn(counts, morphy if morphy is not None else wordnet_morphy(lexicon), min_count=min_count,
+                   capitalised=capitalised)
+    ranked = vocabulary(lemmas, counts, capitalised, None, max_capitalised=max_capitalised, dictionary_only=dictionary_only)
+    chosen = ranked[:top]
+    # Competitors: other lemmas of the chosen lemmas' ambiguous forms (seed, for "seed" next to see).
+    # They are sampled and clustered too, so that a usage can go to them when its context says so.
+    top_set = {l for l, _ in chosen}
+    rivals = {l for ls in lemmas.of.values() if len(ls) > 1 and top_set.intersection(ls) for l in ls} - top_set
+    # Only a lemma with a form of its own (seeds) can win usages in context; said, made or times cannot.
+    rivals &= {ls[0] for ls in lemmas.of.values() if len(ls) == 1}
+    competitors = [(l, n) for l, n in ranked[top:] if l in rivals]
+    chosen = chosen + competitors
     rank = {l: i for i, (l, _) in enumerate(chosen)}
 
     row = {f: i for i, f in enumerate(t["form"])}
@@ -248,7 +258,7 @@ def build_vocab(
         # Every occurrence of a form is offered to each of its lemmas, so a lemma's per-snapshot
         # count is the full count of its forms, ambiguous or not.
         entries.append({
-            "lemma": l, "count": round(n), "forms": fs,
+            "lemma": l, "count": round(n), "forms": fs, "competitor": rank[l] >= top,
             "by_dump": [sum(t[d][row[f]] for f in fs) for d in dumps],
         })
     out = {
@@ -261,7 +271,8 @@ def build_vocab(
     }
     _write_json(workdir / "vocab.json", out)
     ambiguous = sum(1 for ls in forms.values() if len(ls) > 1)
-    log.info("vocab: %d lemmas, %d forms (%d ambiguous)", len(entries), len(forms), ambiguous)
+    log.info("vocab: %d lemmas (%d of them competitors), %d forms (%d ambiguous)", len(entries), len(competitors),
+             len(forms), ambiguous)
     return out
 
 
@@ -493,7 +504,7 @@ def _marked(t) -> list[str]:
     return [f"{c[:a]}<t> {c[a:b]} </t>{c[b:]}" for c, a, b in zip(ctx, s, e)]
 
 
-def encode(workdir: Path, encoder, shard: int = 0, shards: int = 1, k: int = 128, chunk: int = 16_384) -> None:
+def encode(workdir: Path, encoder, shard: int = 0, shards: int = 1, k: int = 128, chunk: int = 4096) -> None:
     """Encode this shard's slice of the usages (contiguous rows), resuming where it stopped.
     Run one process per GPU: CUDA_VISIBLE_DEVICES=i shiftnet bulk encode --shard i --shards n."""
     from numpy.lib.format import open_memmap

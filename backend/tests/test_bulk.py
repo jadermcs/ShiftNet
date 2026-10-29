@@ -38,6 +38,15 @@ def test_learnt_rules_lemmatise_unknown_forms():
     assert lem.of["zork"] == ("zork",)
 
 
+def test_names_and_function_words_keep_their_form():
+    counts = {f: 50 for s in STEMS for f in (s, s + "s", s + "ing")} | {"trees": 50, "treeing": 40, "after": 90}
+    caps = {"treeing": 40, "trees": 30}  # always capitalised: a name; often capitalised: still a word
+    morphy = lambda f: {"r": {"aft"}} if f == "after" else fake_morphy(f)  # noqa: E731
+    lem = learn(counts, morphy, min_count=5, min_support=5, capitalised=caps)
+    assert lem.of["treeing"] == ("treeing",) and lem.of["trees"] == ("tree",)
+    assert lem.of["after"] == ("after",)
+
+
 def test_vocabulary_skips_function_words_and_names():
     counts = {"the": 1000, "bank": 100, "banks": 50, "london": 90, "river": 80}
     caps = {"london": 89, "bank": 5}
@@ -175,3 +184,14 @@ def test_import_stores_runs_with_nearest_sense(workdir, database_url, conn):
         "where r.lemma = 'cloud'"
     ).fetchone()["n"]
     assert stored == 40
+
+
+def test_rival_lemmas_join_the_vocabulary(tmp_path):
+    (tmp_path / "manifest.json").write_text(json.dumps({"docs": 1, "dumps": {DUMPS[0]: []}}))
+    forms = {"leaves": 100, "leaf": 30, "leave": 90, "leaving": 50, "table": 500, "tables": 100}
+    pq.write_table(pa.table({"form": list(forms), "total": list(forms.values()),
+                             "capitalised": [0] * len(forms), DUMPS[0]: list(forms.values())}),
+                   tmp_path / "counts.parquet")
+    v = bulk.build_vocab(tmp_path, top=2, min_count=5, morphy=fake_morphy)
+    lemmas = [(e["lemma"], e["competitor"]) for e in v["lemmas"]]
+    assert lemmas == [("table", False), ("leave", False), ("leaf", True)]  # leaf competes for "leaves"
