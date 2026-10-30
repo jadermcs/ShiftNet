@@ -85,10 +85,11 @@ def discover(
     return RunResult(
         lemma=lemma,
         forms=forms,
-        corpus="local parquet" if data_files else CORPUS,
+        corpus=CORPUS,
         dumps=dumps,
         model=encoder.name,
-        params={"per_dump": per_dump, "max_docs": max_docs, "threshold": threshold, "min_size": min_size, "seed": seed},
+        params={"per_dump": per_dump, "max_docs": max_docs, "threshold": threshold, "min_size": min_size, "seed": seed,
+                **({"local_files": data_files} if data_files else {})},
         candidates=candidates,
         usages=usages,
         assignments=[int(x) for x in c.labels],
