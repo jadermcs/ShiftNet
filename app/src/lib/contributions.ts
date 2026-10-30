@@ -269,5 +269,4 @@ export function compact<T extends object>(o: T): T {
 }
 
 export const isSenseProposal = (c: Contribution): c is Contribution & { payload: SenseProposal } => c.kind === 'sense';
-export const isUsageProposal = (c: Contribution): c is Contribution & { payload: UsageProposal } => c.kind === 'usage';
 export const isRelationProposal = (c: Contribution): c is Contribution & { payload: RelationProposal } => c.kind === 'relation';
