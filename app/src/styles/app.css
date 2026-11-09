@@ -667,3 +667,13 @@ pre.cite-text { font-size: 12px; line-height: 1.6; }
   .dominance { padding: 16px; }
   .dominance-plot { height: 140px; }
 }
+.dominance-rug { position: relative; height: 10px; margin-top: -4px; border-top: 1px solid var(--sn-line); }
+.dominance-rug span { position: absolute; top: 0; width: 2px; height: 7px; margin-left: -1px; border-radius: 0 0 1px 1px; }
+.dominance-rug span.registered { height: 10px; width: 3px; margin-left: -1.5px; }
+.dominance-frame { display: grid; grid-template-columns: auto 1fr; gap: 8px; }
+.dominance-yaxis { position: relative; height: 170px; width: 32px; font-size: 11px; color: var(--sn-fg-muted); }
+.dominance-yaxis span { position: absolute; right: 0; transform: translateY(-50%); }
+.dominance-yaxis span:first-child { transform: none; }
+.dominance-yaxis span:last-child { transform: translateY(-100%); }
+.dominance-mid { position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed color-mix(in srgb, var(--sn-surface) 70%, transparent); pointer-events: none; }
+@media (max-width: 640px) { .dominance-yaxis { height: 140px; } }
