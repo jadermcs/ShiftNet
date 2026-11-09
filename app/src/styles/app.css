@@ -638,3 +638,32 @@ pre.cite-text { font-size: 12px; line-height: 1.6; }
 @media (max-width: 900px) {
   .relation-layout { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Sense dominance chart (word page) */
+.dominance { padding: 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+.dominance h2 { font-size: 16px; font-weight: 600; }
+.dominance-plot { position: relative; height: 170px; border-radius: 4px; cursor: crosshair; outline-offset: 3px; }
+.dominance-plot:focus-visible { outline: 2px solid var(--sn-line-focus); }
+.dominance-plot svg { display: block; width: 100%; height: 100%; }
+.dominance-band { stroke: var(--sn-surface); stroke-width: 2; vector-effect: non-scaling-stroke; transition: opacity 120ms; }
+.dominance-label {
+  position: absolute; transform: translate(-50%, -50%); pointer-events: none;
+  font-size: 11px; padding: 0 5px; border-radius: 4px;
+  background: color-mix(in srgb, var(--sn-surface) 85%, transparent); color: var(--sn-fg);
+}
+.dominance-cursor { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--sn-fg); pointer-events: none; }
+.dominance-tip {
+  position: absolute; top: 8px; margin-left: 10px; z-index: 2; pointer-events: none;
+  width: min(320px, 70%); padding: 8px 10px; display: flex; flex-direction: column; gap: 4px;
+  background: var(--sn-surface-2); border: 1px solid var(--sn-line-chip); border-radius: 6px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.25);
+}
+.dominance-tip.flip { transform: translateX(-100%); margin-left: -10px; }
+.dominance-tip-row, .dominance-legend li { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dominance-axis { position: relative; height: 16px; font-size: 11px; color: var(--sn-fg-muted); }
+.dominance-axis span { position: absolute; transform: translateX(-50%); }
+.dominance-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+@media (max-width: 640px) {
+  .dominance { padding: 16px; }
+  .dominance-plot { height: 140px; }
+}

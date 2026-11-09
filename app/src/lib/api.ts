@@ -152,3 +152,11 @@ export async function resolveLemma(q: string): Promise<CloseSpelling | null> {
   const rows = unwrap<CloseSpelling[]>(await supabase.rpc('resolve_lemma', { q }));
   return rows[0] ?? null;
 }
+
+/** Years of every dated attestation of the given senses, for the dominance chart. */
+export async function fetchAttestationYears(senseIds: string[]): Promise<{ sense_id: string; year: number }[]> {
+  if (!senseIds.length) return [];
+  return unwrap(
+    await supabase.from('attestations').select('sense_id, year').in('sense_id', senseIds).not('year', 'is', null),
+  );
+}

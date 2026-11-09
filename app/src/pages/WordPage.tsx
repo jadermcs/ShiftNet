@@ -7,6 +7,7 @@ import { branchColor, branchLetter, cap, CURRENT_YEAR, index, plural, senseLabel
 import { matchesFilters, toSearch, useViewParams, type ViewParams } from '../lib/params';
 import { POS_ORDER, type Sense } from '../lib/types';
 import { AttestationList } from '../components/Attestations';
+import { DominanceChart } from '../components/DominanceChart';
 import { WordContribute } from '../components/ContributeLinks';
 import { FilterBar } from '../components/FilterBar';
 import { ValidationBadge } from '../components/ValidationBadge';
@@ -77,6 +78,7 @@ export function WordPage() {
           </div>
         </div>
       </div>
+      <DominanceChart senses={senses} lemma={lemma} />
       <ShareBar title={lemma} citeKey={lemma} />
       {params.view === 'senses' ? (
         <SensesView senses={senses} lemma={lemma} />
