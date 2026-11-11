@@ -13,7 +13,7 @@ The browser app never uses any of this; it keeps reading through Supabase with t
 
 ```sh
 cd backend
-uv sync --all-extras          # Python 3.12, CPU torch; drop --all-extras for models + CLI import only
+uv sync --all-extras          # Python 3.12, CUDA 13.0 torch (pyproject: pytorch-cu130 index); drop --all-extras for models + CLI import only
 export DATABASE_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres'
 ```
 
@@ -63,7 +63,7 @@ uv run shiftnet reject <candidate-id> --note "proper name"
 How a run works:
 
 1. **Sample.** It streams each fineweb-edu snapshot (one config per Common Crawl dump), keeps documents that contain one of the forms (whole word, case-insensitive), and takes the sentence around each match, at most 2 per document. That gives `--per-dump` usages from each snapshot, each with its crawl date and URL.
-2. **Encode.** It wraps the target in `<t> … </t>` and encodes it with LexSPLADE. The model's limit is **64 tokens**, so sentences are trimmed around the target first; otherwise the markers would be cut off and the model would silently return a sentence embedding. Each usage becomes a sparse vector over the BERT vocabulary, so it can be read as words (river bank → *side, water, edge, shore*).
+2. **Encode.** It wraps the target in `<t>…</t>` (no spaces inside, which RoBERTa's byte-level BPE needs) and encodes it with LexSPLADE. The model's limit is **64 tokens**, so sentences are trimmed around the target first; otherwise the markers would be cut off and the model would silently return a sentence embedding. Each usage becomes a sparse vector over the BERT vocabulary, so it can be read as words (river bank → *side, water, edge, shore*).
 3. **Cluster.** It runs average-linkage agglomerative clustering on cosine distance, cut where the average similarity drops below `--threshold` (default 0.35). Same-sense pairs score about 0.6–0.9 and different senses about 0.1–0.2. Clusters smaller than `--min-size` are dropped, and their usages join the nearest kept cluster if they are similar enough.
 4. **Describe.** Each cluster gets its strongest centroid terms (the target's own forms are left out), its first and last crawl dates, usages per year, and the closest sense already in the lexicon. That last one comes from encoding the senses' examples and attestation quotes the same way.
 
@@ -108,7 +108,7 @@ How it works:
 6. **Cluster.** Average linkage as in `discover` (scipy's nearest-neighbour chain), one process per core. `--min-size` defaults to 10 here. Lemmas with fewer than 50 usages are skipped. Each candidate stores its 15 most typical and 5 most borderline usages. The rest are counted (`usage_count`, `noise_count`) but not stored, so the database gets about 20 usages per candidate instead of 40M rows. Results go to `runs/*.jsonl.gz`.
 7. **Import** skips lemmas already imported under the same `--tag` (default: the work directory's name). For lemmas already in the lexicon, it encodes the existing senses' examples to record each candidate's nearest sense, as `discover` does.
 
-**Cost.** Counting runs at about 0.4M tokens/s per core: 500k documents × 8 snapshots ≈ 4B tokens, so about 10 minutes on 16 cores. Encoding is the bottleneck. On 8 CPU cores it runs at about 3 usages/s, because real contexts fill most of the 64 tokens. Expect roughly 2–4k/s per A100 in bfloat16 (not measured here), so 40M usages take about 3–5 hours on 4 GPUs. Clustering 2,000 usages takes about a second per lemma per core. Plan on about 30 GB of RAM for `sample` (one snapshot's candidates in pandas) and 60 GB of disk.
+**Cost.** Counting runs at about 0.4M tokens/s per core: 500k documents × 8 snapshots ≈ 4B tokens, so about 10 minutes on 16 cores. Encoding is the bottleneck. On 8 CPU cores it runs at about 3 usages/s, because real contexts fill most of the 64 tokens. Measured on one RTX 5060 Ti (16 GB) with `lexsplade-roberta-large-silver-wic-wnbags` in bfloat16: about 1,000 usages/s, so 37.6M usages took about 11 hours; expect roughly 2–4k/s per A100. Clustering 18k lemmas took 36 minutes on 20 cores. `sample` spools each batch to disk and peaks at about 12 GB of RAM with 10 workers (`--workers`); run it under a memory cap (`systemd-run --user --scope -p MemoryMax=18G …`) on a shared machine. Plan on 60 GB of disk.
 
 ## Relation suggestions
 

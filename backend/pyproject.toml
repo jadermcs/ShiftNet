@@ -33,11 +33,13 @@ dev = ["pytest>=8", "pgserver>=0.1.4"]
 default-groups = ["dev"]
 
 [tool.uv.sources]
-torch = { index = "pytorch-cpu" }
+# CUDA 13.0 build (RTX 50xx / Blackwell needs cu128+). On a machine without a GPU, switch to
+# name = "pytorch-cpu", url = "https://download.pytorch.org/whl/cpu".
+torch = { index = "pytorch-cu130" }
 
 [[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
 [build-system]

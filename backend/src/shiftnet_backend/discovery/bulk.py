@@ -45,7 +45,7 @@ from scipy import sparse
 from ..models import Candidate, CorpusUsage, RunResult
 from .cluster import MAX_USAGES, cluster, nearest
 from .corpus import CORPUS, crawl_date
-from .encoder import from_topk, normalize_rows, top_terms
+from .encoder import from_topk, normalize_rows, term_vocab, top_terms
 from .lemmatize import learn, vocabulary, wordnet_morphy
 from .text import context_at
 
@@ -390,13 +390,15 @@ def _sample_task(task: Task) -> dict[str, list]:
                 rows["form"].append(f)
                 rows["pools"].append(kept)
                 rows["key"].append(u)
-    # Cut every context to the encoder in one tokeniser call.
-    keep = []
-    for r, offs in enumerate(_S.offsets(rows["context"]) if rows["context"] else []):
-        got = fit(rows["context"][r], rows["target_start"][r], rows["target_end"][r], offs, _S.budget)
-        if got:
-            rows["context"][r], rows["target_start"][r], rows["target_end"][r] = got
-            keep.append(r)
+    # Cut every context to the encoder, in batched tokeniser calls. Not one call for the whole task:
+    # ~120k contexts' offsets as Python tuples take about 1 GB per worker.
+    keep, ctxs = [], rows["context"]
+    for a in range(0, len(ctxs), 4096):
+        for r, offs in enumerate(_S.offsets(ctxs[a : a + 4096]), a):
+            got = fit(ctxs[r], rows["target_start"][r], rows["target_end"][r], offs, _S.budget)
+            if got:
+                ctxs[r], rows["target_start"][r], rows["target_end"][r] = got
+                keep.append(r)
     return {k: [v[r] for r in keep] for k, v in rows.items()}
 
 
@@ -412,7 +414,6 @@ def sample(
     workers: int = os.cpu_count() or 1,
 ) -> None:
     """Up to per_lemma usages of every vocabulary lemma, the same quota from each snapshot."""
-    import pandas as pd
     import pyarrow as pa
     import pyarrow.feather as feather
 
@@ -437,8 +438,10 @@ def sample(
 
     out = workdir / "usages"
     out.mkdir(exist_ok=True)
-    # [CLS] … [SEP] and the two markers, which are single tokens of the LexSPLADE vocabulary.
-    budget = max_tokens - 4
+    # [CLS] … [SEP] and the two markers, which are single tokens of the LexSPLADE vocabulary, plus
+    # slack for byte-level BPE (RoBERTa): a stray space token before <t>, and a target that loses its
+    # leading space can split into more pieces (Ġdoomscrolling → d·oom·sc·rolling).
+    budget = max_tokens - 8
     by_dump: dict[str, list[Task]] = {}
     for t in tasks(manifest):
         by_dump.setdefault(t.dump, []).append(t)
@@ -448,37 +451,83 @@ def sample(
             if path.exists():
                 log.info("sample: %s done already", dump)
                 continue
-            parts = []
-            for i, rows in enumerate(pool.imap_unordered(_sample_task, by_dump.get(dump, [])), 1):
-                if rows["form"]:
-                    parts.append(pd.DataFrame(rows))
-                if i % 50 == 0:
-                    log.info("sample %s: %d/%d batches", dump, i, len(by_dump[dump]))
-            df = _take_quota(pd.concat(parts, ignore_index=True), quota, max_per_doc) if parts else None
-            if df is None or df.empty:
+            # An oversampled snapshot is ~7M rows: each batch goes to disk as it arrives (with hashes of
+            # its document and lower-cased context), and only the kept rows are read back. Holding
+            # them in memory once ran a 30 GB machine out of memory. A crash resumes from the parts.
+            spool = out / f"{dump}.parts"
+            spool.mkdir(exist_ok=True)
+            todo = [t for t in by_dump.get(dump, []) if not (spool / f"{t.index:06d}.arrow").exists()]
+            for i, (index, rows) in enumerate(pool.imap_unordered(_sample_part, todo), 1):
+                if not rows["form"]:
+                    continue
+                part = pa.Table.from_pydict(rows)
+                del rows
+                part = part.append_column("doc_h", pa.array(_hash_strings(part.column("doc_id"))))
+                part = part.append_column("ctx_h", pa.array(_hash_strings(part.column("context"), lower=True)))
+                tmp = spool / f"{index:06d}.tmp"
+                feather.write_feather(part, tmp, compression="uncompressed")
+                tmp.replace(spool / f"{index:06d}.arrow")
+                del part
+                if i % 10 == 0:
+                    log.info("sample %s: %d/%d batches", dump, i, len(todo))
+            files = sorted(spool.glob("*.arrow"))
+            mapped = pa.concat_tables([pa.ipc.open_file(pa.memory_map(str(p))).read_all() for p in files]) if files else None
+            if mapped is None or not mapped.num_rows:
                 log.warning("sample: nothing in %s", dump)
                 continue
-            df["pools"] = df["pools"].map(lambda ids: [names[i] for i in ids])
-            t = pa.Table.from_pandas(df.drop(columns=["key"]), preserve_index=False)
+            rows_kept, pools = _take_quota(mapped.select(["pools", "key", "doc_h", "ctx_h"]), quota, max_per_doc)
+            t = mapped.drop(["key", "pools", "doc_h", "ctx_h"]).take(pa.array(rows_kept))
+            del mapped
+            t = t.append_column("pools", pa.array([[names[i] for i in ids] for ids in pools], pa.list_(pa.string())))
             tmp = path.with_suffix(".tmp")
             feather.write_feather(t, tmp, compression="uncompressed")  # memory-mappable
             tmp.replace(path)
-            log.info("sample %s: %d usages for %d lemmas", dump, len(df), df["pools"].explode().nunique())
+            log.info("sample %s: %d usages for %d lemmas", dump, t.num_rows, len({l for ls in pools for l in ls}))
+            del t
+            for p in files:
+                p.unlink()
+            spool.rmdir()
 
 
-def _take_quota(df, quota: int, max_per_doc: int):
-    """Per lemma: the `quota` lowest keys, at most max_per_doc per document, no repeated context."""
-    df = df.reset_index(drop=True)
-    pairs = df[["pools", "key", "doc_id", "context"]].explode("pools")
-    pairs["ctx"] = pairs["context"].str.lower()
+def _hash_strings(col, lower: bool = False, chunk: int = 1 << 20) -> np.ndarray:
+    """64-bit hashes of an Arrow string column, a chunk at a time (the strings are never all Python objects)."""
+    import pandas as pd
+    import pyarrow.compute as pc
+
+    out = np.empty(len(col), dtype=np.uint64)
+    for a in range(0, len(col), chunk):
+        c = col.slice(a, chunk)
+        if lower:
+            c = pc.utf8_lower(c)
+        out[a : a + len(c)] = pd.util.hash_array(np.asarray(c.to_numpy(zero_copy_only=False), dtype=object))
+    return out
+
+
+def _sample_part(task: Task) -> tuple[int, dict[str, list]]:
+    return task.index, _sample_task(task)
+
+
+def _take_quota(t, quota: int, max_per_doc: int) -> tuple[np.ndarray, list[list[int]]]:
+    """Per lemma: the `quota` lowest keys, at most max_per_doc per document, no repeated context.
+    `t` holds pools (lemma ids), key, doc_h and ctx_h (hashes of the document id and the lower-cased
+    context); returns the kept rows of `t` and each one's lemma ids."""
+    import pandas as pd
+
+    pools = t.column("pools").combine_chunks()
+    lens = np.asarray(pools.value_lengths())
+    pairs = pd.DataFrame({
+        "row": np.repeat(np.arange(t.num_rows), lens),
+        "pools": np.asarray(pools.flatten()),
+        "key": np.repeat(t.column("key").to_numpy(), lens),
+        "doc": np.repeat(t.column("doc_h").to_numpy(), lens),
+        "ctx": np.repeat(t.column("ctx_h").to_numpy(), lens),
+    })
     pairs = pairs.sort_values(["pools", "key"], kind="stable")
     pairs = pairs[~pairs.duplicated(["pools", "ctx"])]
-    pairs = pairs[pairs.groupby(["pools", "doc_id"]).cumcount() < max_per_doc]
+    pairs = pairs[pairs.groupby(["pools", "doc"]).cumcount() < max_per_doc]
     pairs = pairs[pairs.groupby("pools").cumcount() < quota]
-    kept = pairs.groupby(level=0)["pools"].agg(list)
-    out = df.loc[kept.index].copy()
-    out["pools"] = kept
-    return out.reset_index(drop=True)
+    kept = pairs.groupby("row")["pools"].agg(list)
+    return kept.index.to_numpy(), kept.tolist()
 
 
 def load_usages(workdir: Path):
@@ -494,6 +543,29 @@ def load_usages(workdir: Path):
     return pa.concat_tables(tables)
 
 
+def take_rows(table, ids) -> "pa.Table":
+    """table.take(ids) for a table of memory-mapped batches, in the order of ids. Arrow's own take
+    first concatenates every chunk of a string column, which overflows its 32-bit offsets past 2 GB
+    of text (8 snapshots are ~12 GB) and would copy it all into memory anyway."""
+    import pyarrow as pa
+
+    ids = np.asarray(ids, dtype=np.int64)
+    batches = table.to_batches()
+    starts = np.cumsum([0] + [b.num_rows for b in batches])
+    which = np.searchsorted(starts, ids, side="right") - 1
+    order = np.argsort(which, kind="stable")
+    parts = []
+    for b in np.unique(which):
+        sel = order[which[order] == b]
+        parts.append((sel, batches[b].take(pa.array(ids[sel] - starts[b]))))
+    if not parts:
+        return table.schema.empty_table()
+    out = pa.Table.from_batches([p for _, p in parts], schema=table.schema)
+    back = np.empty(len(ids), dtype=np.int64)
+    back[np.concatenate([sel for sel, _ in parts])] = np.arange(len(ids))
+    return out.take(pa.array(back))  # back to the order of ids; out is small
+
+
 # encode ---------------------------------------------------------------------------------------
 
 
@@ -501,7 +573,7 @@ def _marked(t) -> list[str]:
     ctx = t.column("context").to_pylist()
     s = t.column("target_start").to_pylist()
     e = t.column("target_end").to_pylist()
-    return [f"{c[:a]}<t> {c[a:b]} </t>{c[b:]}" for c, a, b in zip(ctx, s, e)]
+    return [f"{c[:a]}<t>{c[a:b]}</t>{c[b:]}" for c, a, b in zip(ctx, s, e)]  # as CorpusUsage.marked
 
 
 def encode(workdir: Path, encoder, shard: int = 0, shards: int = 1, k: int = 128, chunk: int = 4096) -> None:
@@ -562,6 +634,7 @@ class Vectors:
         self.parts = parts
         self.dim = self.meta["dim"]
         self.vocab = self.meta["vocab"]
+        self.words = term_vocab(self.vocab)
 
     def arrays(self, ids: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Top-k indices and L2-normalised float32 weights of the given rows, in their order."""
@@ -681,14 +754,14 @@ def cluster_lemma(lemma: str, forms: list[str], ids: np.ndarray, usages, vectors
     X = vectors.rows(ids)
     c = cluster(X, threshold=threshold, min_size=min_size)
     exclude = {lemma, *forms}
-    t = usages.take(ids).select(["doc_id", "dump", "url", "crawled_on", "context", "target_start", "target_end"]).to_pydict()
+    t = take_rows(usages, ids).select(["doc_id", "dump", "url", "crawled_on", "context", "target_start", "target_end"]).to_pydict()
 
     candidates, keep = [], []
     for k in range(c.centroids.shape[0]):
         members = np.flatnonzero(c.labels == k)
         dates = sorted(d for d in (t["crawled_on"][i] for i in members) if d)
         candidates.append(Candidate(
-            cluster=k, size=len(members), terms=top_terms(vectors.vocab, c.centroids[k], 16, exclude),
+            cluster=k, size=len(members), terms=top_terms(vectors.words, c.centroids[k], 16, exclude),
             first_seen=dates[0] if dates else None, last_seen=dates[-1] if dates else None,
             year_counts=dict(sorted(Counter(str(d.year) for d in dates).items())),
         ))
@@ -707,7 +780,7 @@ def cluster_lemma(lemma: str, forms: list[str], ids: np.ndarray, usages, vectors
         ) for i in keep],
         assignments=[int(c.labels[i]) for i in keep],
         similarities=[round(float(c.similarity[i]), 4) for i in keep],
-        usage_terms=[top_terms(vectors.vocab, X[i], 8, exclude) for i in keep],
+        usage_terms=[top_terms(vectors.words, X[i], 8, exclude) for i in keep],
         usage_count=len(ids),
         noise_count=int((c.labels == -1).sum()),
     )

@@ -195,3 +195,11 @@ def test_rival_lemmas_join_the_vocabulary(tmp_path):
     v = bulk.build_vocab(tmp_path, top=2, min_count=5, morphy=fake_morphy)
     lemmas = [(e["lemma"], e["competitor"]) for e in v["lemmas"]]
     assert lemmas == [("table", False), ("leave", False), ("leaf", True)]  # leaf competes for "leaves"
+
+
+def test_take_rows_keeps_order_across_batches():
+    import pyarrow as pa
+
+    t = pa.concat_tables([pa.table({"a": [f"x{i}" for i in range(k, k + 5)]}) for k in (0, 5, 10)])
+    ids = [12, 0, 7, 3, 14, 7]
+    assert bulk.take_rows(t, ids).column("a").to_pylist() == [f"x{i}" for i in ids]

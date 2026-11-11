@@ -30,6 +30,7 @@ class Encoder:
         self.max_tokens = int(self.model.max_seq_length)
         self.batch_size = batch_size
         self.vocab = self.tokenizer.convert_ids_to_tokens(list(range(len(self.tokenizer))))
+        self.words = term_vocab(self.vocab)
 
     def count_tokens(self, text: str) -> int:
         """Word pieces in the text, plus [CLS] and [SEP]."""
@@ -60,7 +61,16 @@ class Encoder:
     def terms(self, row: np.ndarray | sparse.spmatrix, k: int = 12, exclude: set[str] = frozenset()) -> list[Term]:
         """The k strongest word-like dimensions of a vector, skipping word pieces, punctuation and
         the excluded terms (usually the target's own forms)."""
-        return top_terms(self.vocab, row, k, exclude)
+        return top_terms(self.words, row, k, exclude)
+
+
+def term_vocab(vocab: list[str]) -> list[str]:
+    """Vocabulary entries as words for top_terms. WordPiece (BERT) entries are words already, and its
+    pieces start with ##. In a byte-level BPE (RoBERTa) a word starts with Ġ (a leading space): Ġbank
+    becomes bank, and every other entry is marked as a piece (##…), so that top_terms skips it."""
+    if not any(t.startswith("Ġ") for t in vocab):
+        return list(vocab)
+    return [t[1:] if t.startswith("Ġ") else f"##{t}" for t in vocab]
 
 
 def top_terms(vocab: list[str], row: np.ndarray | sparse.spmatrix, k: int = 12, exclude: set[str] = frozenset()) -> list[Term]:
