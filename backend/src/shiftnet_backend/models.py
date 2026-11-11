@@ -229,9 +229,11 @@ class CorpusUsage(Row):
         return self.context[self.target_start : self.target_end]
 
     def marked(self) -> str:
-        """The context with the target wrapped in LexSPLADE's <t> … </t> markers."""
+        """The context with the target wrapped in LexSPLADE's <t>…</t> markers, with no spaces inside:
+        a byte-level BPE (RoBERTa) would otherwise add stray space tokens the model was not trained on.
+        WordPiece (BERT) tokenises both spellings the same way."""
         c = self.context
-        return f"{c[: self.target_start]}<t> {self.target} </t>{c[self.target_end :]}"
+        return f"{c[: self.target_start]}<t>{self.target}</t>{c[self.target_end :]}"
 
 
 class Candidate(BaseModel):

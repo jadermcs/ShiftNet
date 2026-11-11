@@ -43,6 +43,6 @@ def test_sense_id_prefix():
 def test_usage_marking():
     u = CorpusUsage(doc_id="d", context="Back up to the cloud.", target_start=15, target_end=20)
     assert u.target == "cloud"
-    assert u.marked() == "Back up to the <t> cloud </t>."
+    assert u.marked() == "Back up to the <t>cloud</t>."
     with pytest.raises(ValidationError):
         CorpusUsage(doc_id="d", context="short", target_start=3, target_end=9)
