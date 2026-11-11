@@ -1,7 +1,8 @@
-import psycopg
+import sqlite3
+
 import pytest
 
-from shiftnet_backend import lexicon
+from shiftnet_backend import db, lexicon
 from shiftnet_backend.models import AttestationIn, SenseIn, SourceIn
 
 NEW = dict(lemma="cloud", pos="noun", gloss="a group of servers rented on demand", date_label="2006",
@@ -12,8 +13,8 @@ NEW = dict(lemma="cloud", pos="noun", gloss="a group of servers rented on demand
 def test_seed_follows_the_root_rule(conn):
     """SenseIn requires root ⇔ no parents; the existing data must satisfy it so it can be re-saved."""
     bad = conn.execute(
-        """select id, shift from public.senses s
-           where (shift = 'root') = exists (select 1 from public.sense_parents p where p.sense_id = s.id)"""
+        """select id, shift from senses s
+           where (shift = 'root') = exists (select 1 from sense_parents p where p.sense_id = s.id)"""
     ).fetchall()
     assert bad == []
 
@@ -21,12 +22,12 @@ def test_seed_follows_the_root_rule(conn):
 def test_new_sense_gets_next_id_and_number(conn):
     (sid,) = lexicon.save_senses(conn, [SenseIn(**NEW, synonyms=["cloud hosting"])])
     assert sid == "cloud.n.07"
-    row = conn.execute("select sense_num, branch, validation from public.senses where id = %s", (sid,)).fetchone()
+    row = conn.execute("select sense_num, branch, validation from senses where id = ?", (sid,)).fetchone()
     assert row["sense_num"] == 7 and row["validation"] == "editorial"
     word = {s["id"]: s for s in lexicon.word(conn, "Cloud")}
     assert word[sid]["parents"][0]["id"] == "cloud.n.06"
     assert word[sid]["synonyms"] == ["cloud hosting"]
-    assert conn.execute("select * from public.search_lemmas('cloud host')").fetchone()["sense_id"] == sid
+    assert lexicon.search_lemmas(conn, "cloud host")[0]["sense_id"] == sid
 
 
 def test_update_replaces_links_and_keeps_attestations(conn):
@@ -40,7 +41,7 @@ def test_update_replaces_links_and_keeps_attestations(conn):
     assert s["gloss"] == "rented servers"
     assert [p["id"] for p in s["parents"]] == ["cloud.n.05", "cloud.n.06"]
     assert len(s["attestations"]) == 1  # the same quote from the same work is stored once
-    assert s["attestations"][0]["relevance"] > 0  # computed by the database trigger
+    assert s["attestations"][0]["relevance"] > 0  # computed by db.refresh_relevance
     assert sid in {c["id"] for c in lexicon.sense(conn, "cloud.n.05")["children"]}
 
 
@@ -63,10 +64,10 @@ def test_batch_with_parent_later_in_the_batch(conn):
 
 def test_unknown_parent_fails_the_whole_batch(conn):
     bad = SenseIn(**{**NEW, "parents": [{"parent_id": "nope.n.01"}]})
-    with pytest.raises(psycopg.errors.ForeignKeyViolation):
-        with conn.transaction():
+    with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
+        with db.transaction(conn):
             lexicon.save_senses(conn, [SenseIn(**NEW), bad])
-    assert conn.execute("select count(*) as n from public.senses where id like 'cloud.n.0_' and id > 'cloud.n.06'").fetchone()["n"] == 0
+    assert conn.execute("select count(*) as n from senses where id like 'cloud.n.0_' and id > 'cloud.n.06'").fetchone()["n"] == 0
 
 
 def test_search_falls_back_to_close_spellings(conn):

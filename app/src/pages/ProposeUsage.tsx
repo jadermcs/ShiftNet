@@ -8,7 +8,6 @@ import { senseTag } from '../lib/format';
 import type { SenseRef, ValidationMethod } from '../lib/types';
 import { Field } from '../components/Field';
 import { useCrumbs } from '../components/Shell';
-import { RequireSignIn } from '../components/SignIn';
 import { ErrorState, Loading } from '../components/States';
 import { SubmitBar, SubmitResult } from '../components/SubmitBar';
 import { EMPTY_USAGE, UsageFields, usagePayload, type UsageInput } from '../components/UsageFields';
@@ -35,42 +34,39 @@ export function ProposeUsage() {
           record (antedatings) are especially welcome; a moderator checks those.
         </p>
       </div>
-      <RequireSignIn>
-        {() =>
-          !senseId ? (
-            <SensePicker onPick={(id) => setParams({ sense: id })} />
-          ) : sense.isPending ? (
-            <Loading label="Loading sense…" />
-          ) : sense.isError ? (
-            <ErrorState error={sense.error} retry={() => sense.refetch()} />
-          ) : !s ? (
-            <>
-              <p className="card state" role="alert">
-                There is no sense <span className="mono">{senseId}</span>.
-              </p>
-              <SensePicker onPick={(id) => setParams({ sense: id })} />
-            </>
-          ) : (
-            <>
-              <div className="card propose-target">
-                <span className="label">Sense</span>
-                <div className="row-gap wrap">
-                  <Link to={`/sense/${s.id}`} className="strong-lg">
-                    {s.lemma} <span className="mono fg2">{senseTag(s)}</span>
-                  </Link>
-                  <span className="mono small muted">registered {s.date_label}</span>
-                  <ValidationBadge state={s.validation} compact={s.validation === 'editorial'} />
-                  <button className="link-btn underline small push-right" onClick={() => setParams({})}>
-                    Choose another sense
-                  </button>
-                </div>
-                <div className="gloss">{s.gloss}</div>
-              </div>
-              <UsageForm key={s.id} senseId={s.id} lemma={s.lemma} />
-            </>
-          )
-        }
-      </RequireSignIn>
+      {!senseId ? (
+        <SensePicker onPick={(id) => setParams({ sense: id })} />
+      ) : sense.isPending ? (
+        <Loading label="Loading sense…" />
+      ) : sense.isError ? (
+        <ErrorState error={sense.error} retry={() => sense.refetch()} />
+      ) : !s ? (
+        <>
+          <p className="card state" role="alert">
+            There is no sense <span className="mono">{senseId}</span>.
+          </p>
+          <SensePicker onPick={(id) => setParams({ sense: id })} />
+        </>
+      ) : (
+        <>
+          <div className="card propose-target">
+            <span className="label">Sense</span>
+            <div className="row-gap wrap">
+              <Link to={`/sense/${s.id}`} className="strong-lg">
+                {s.lemma} <span className="mono fg2">{senseTag(s)}</span>
+              </Link>
+              <span className="mono small muted">registered {s.date_label}</span>
+              <ValidationBadge state={s.validation} compact={s.validation === 'editorial'} />
+              <button className="link-btn underline small push-right" onClick={() => setParams({})}>
+                Choose another sense
+              </button>
+            </div>
+            <div className="gloss">{s.gloss}</div>
+          </div>
+          <UsageForm key={s.id} senseId={s.id} lemma={s.lemma} />
+        </>
+      )}
+
     </>
   );
 }
@@ -101,10 +97,7 @@ function UsageForm({ senseId, lemma }: { senseId: string; lemma: string }) {
     run(async () => {
       const c = await submitUsage(payload());
       setDone(c);
-      qc.invalidateQueries({ queryKey: ['my-contributions'] });
-      qc.invalidateQueries({ queryKey: ['pending-usages', senseId] });
-      qc.invalidateQueries({ queryKey: ['attestations', senseId] });
-      qc.invalidateQueries({ queryKey: ['word', lemma] });
+      qc.invalidateQueries(); // an auto-accepted proposal changes the lexicon: refetch every view
     });
   };
 

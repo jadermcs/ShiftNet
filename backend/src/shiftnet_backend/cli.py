@@ -1,5 +1,7 @@
 """shiftnet: load lexicon data and run sense discovery from the command line.
 
+  shiftnet serve [--static ../app/dist]        the local API the web app talks to (http://127.0.0.1:8000)
+  shiftnet seed                                load the sample lexicon into an empty database
   shiftnet import senses.jsonl                 commit senses (one SenseIn JSON per line, or a JSON list)
   shiftnet discover cloud --per-dump 200       sample, encode, cluster and store candidates
   shiftnet candidates [--lemma cloud]          list pending candidates
@@ -12,7 +14,7 @@
   shiftnet bulk <stage> --workdir DIR          candidate senses for the N most frequent lemmas:
                                                download, count, vocab, sample, encode, cluster, import, status
 
-All commands use DATABASE_URL (a privileged Postgres connection string).
+All commands use the SQLite database at $SHIFTNET_DB (default ~/data/shiftnet.sqlite), or --db.
 """
 
 from __future__ import annotations
@@ -24,7 +26,6 @@ import os
 import sys
 from pathlib import Path
 
-import psycopg
 from pydantic import TypeAdapter, ValidationError
 
 from . import db, lexicon
@@ -45,10 +46,13 @@ def cmd_import(a: argparse.Namespace) -> int:
     except ValidationError as e:
         print(e, file=sys.stderr)
         return 1
-    with db.transaction(a.database_url) as conn:
-        ids = lexicon.save_senses(conn, senses)
-        if a.dry_run:
-            raise psycopg.Rollback()
+    try:
+        with db.transaction(a.db) as conn:
+            ids = lexicon.save_senses(conn, senses)
+            if a.dry_run:
+                raise db.Rollback()
+    except db.Rollback:
+        pass
     print(f"{'Checked' if a.dry_run else 'Saved'} {len(ids)} senses: {', '.join(ids)}")
     return 0
 
@@ -65,14 +69,14 @@ def cmd_discover(a: argparse.Namespace) -> int:
         for spec in a.data_files:
             dump, _, files = spec.partition("=")
             data_files[dump] = files
-    with db.connect(a.database_url) as conn:
+    with db.reader(a.db) as conn:
         existing = lexicon.sense_texts(conn, a.lemma)
     encoder = Encoder(a.model, device=a.device, batch_size=a.batch_size)
     result = discover(
         a.lemma, encoder, forms=a.forms, dumps=a.dumps, per_dump=a.per_dump, max_docs=a.max_docs,
         threshold=a.threshold, min_size=a.min_size, existing=existing, data_files=data_files,
     )
-    with db.transaction(a.database_url) as conn:
+    with db.transaction(a.db) as conn:
         run_id = save_run(conn, result)
     noise = result.assignments.count(-1)
     print(f"Run {run_id}: {len(result.usages)} usages, {len(result.candidates)} candidates, {noise} unclustered")
@@ -86,7 +90,7 @@ def cmd_discover(a: argparse.Namespace) -> int:
 def cmd_candidates(a: argparse.Namespace) -> int:
     from .discovery.store import list_candidates
 
-    with db.connect(a.database_url) as conn:
+    with db.reader(a.db) as conn:
         rows = list_candidates(conn, a.lemma, None if a.status == "all" else CandidateStatus(a.status), a.limit)
     for r in rows:
         near = f"  ~ {r['nearest_sense_id']} ({r['nearest_score']:.2f})" if r["nearest_sense_id"] else ""
@@ -97,7 +101,7 @@ def cmd_candidates(a: argparse.Namespace) -> int:
 def cmd_show(a: argparse.Namespace) -> int:
     from .discovery.store import get_candidate
 
-    with db.connect(a.database_url) as conn:
+    with db.reader(a.db) as conn:
         c = get_candidate(conn, a.candidate, a.usages)
     if c is None:
         print(f"No candidate {a.candidate}", file=sys.stderr)
@@ -110,7 +114,7 @@ def _review(a: argparse.Namespace, fn) -> int:
     from .discovery.store import ReviewError
 
     try:
-        with db.transaction(a.database_url) as conn:
+        with db.transaction(a.db) as conn:
             ref = fn(conn)
     except (ReviewError, ValidationError) as e:
         print(e, file=sys.stderr)
@@ -148,12 +152,12 @@ def cmd_relations_suggest(a: argparse.Namespace) -> int:
     from .discovery.relations import RelationSuggester
 
     suggester = RelationSuggester(Encoder(a.model, device=a.device, batch_size=a.batch_size), per_relation=a.per_relation)
-    with db.transaction(a.database_url) as conn:
+    with db.transaction(a.db) as conn:
         found = suggest(conn, suggester, a.lemmas or None, min_score=a.min_score)
         covered = {
             r["id"] for r in conn.execute(
-                "select id from public.senses where %(all)s or lower(lemma) = any(%(l)s)",
-                {"all": not a.lemmas, "l": [l.lower() for l in a.lemmas]},
+                "select id from senses where ? or lower(lemma) in (select value from json_each(?))",
+                (not a.lemmas, [l.lower() for l in a.lemmas]),
             )
         }
         n = save_suggestions(conn, found, suggester.enc.name, covered)
@@ -167,7 +171,7 @@ def cmd_relations_suggest(a: argparse.Namespace) -> int:
 def cmd_relations_show(a: argparse.Namespace) -> int:
     from .discovery.relation_store import list_suggestions
 
-    with db.connect(a.database_url) as conn:
+    with db.reader(a.db) as conn:
         rows = list_suggestions(conn, a.sense)
     for r in rows:
         t = r["target_sense_id"] or r["target_synset_id"]
@@ -202,7 +206,7 @@ def cmd_bulk(a: argparse.Namespace) -> int:
         from .discovery.encoder import Encoder
 
         n = bulk.import_runs(
-            lambda write: db.transaction(a.database_url) if write else db.connect(a.database_url),
+            lambda write: db.transaction(a.db) if write else db.reader(a.db),
             w, a.tag or w.resolve().name, lambda: Encoder(a.model, device=a.device, batch_size=a.batch_size),
         )
         print(f"Stored {n} runs")
@@ -211,11 +215,37 @@ def cmd_bulk(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_serve(a: argparse.Namespace) -> int:
+    from .api import serve
+
+    if a.db:
+        os.environ[db.ENV_VAR] = a.db
+    serve(a.host, a.port, a.static)
+    return 0
+
+
+def cmd_seed(a: argparse.Namespace) -> int:
+    with db.reader(a.db) as conn:
+        db.seed(conn)
+        n = conn.execute("select count(*) as n from senses").fetchone()["n"]
+    print(f"Loaded the sample lexicon: {n} senses into {db.database_path(a.db)}")
+    return 0
+
+
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="shiftnet", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--database-url", help="defaults to $DATABASE_URL")
+    p.add_argument("--db", help="SQLite database file (default: $SHIFTNET_DB or ~/data/shiftnet.sqlite)")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("serve", help="run the local API the web app talks to")
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--port", type=int, default=8000)
+    s.add_argument("--static", help="also serve this built app directory (app/dist) at /")
+    s.set_defaults(fn=cmd_serve)
+
+    s = sub.add_parser("seed", help="load the sample lexicon into an empty database")
+    s.set_defaults(fn=cmd_seed)
 
     s = sub.add_parser("import", help="commit senses from JSON / JSONL")
     s.add_argument("file", help="path, or - for stdin")

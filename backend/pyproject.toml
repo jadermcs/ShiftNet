@@ -1,11 +1,12 @@
 [project]
 name = "shiftnet-backend"
 version = "0.1.0"
-description = "ShiftNet backend: typed models that commit lexicon data to Postgres, sense discovery over fineweb-edu with LexSPLADE, and an MCP server."
+description = "ShiftNet backend: the SQLite lexicon, the local API the web app uses, sense discovery over fineweb-edu with LexSPLADE, and an MCP server."
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.8",
-  "psycopg[binary]>=3.2",
+  "starlette>=0.40",
+  "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]
@@ -27,7 +28,7 @@ shiftnet = "shiftnet_backend.cli:main"
 shiftnet-mcp = "shiftnet_backend.mcp_server:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "pgserver>=0.1.4"]
+dev = ["pytest>=8", "httpx>=0.27"]
 
 [tool.uv]
 default-groups = ["dev"]

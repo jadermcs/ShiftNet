@@ -1,9 +1,9 @@
 """ShiftNet MCP server: lets an assistant browse the lexicon and review discovered senses.
 
 Read tools are always on. Tools that write (saving senses, running discovery, reviewing
-candidates) are only registered when SHIFTNET_MCP_WRITE=1, since DATABASE_URL is privileged.
+candidates) are only registered when SHIFTNET_MCP_WRITE=1.
 
-  DATABASE_URL=postgresql://… SHIFTNET_MCP_WRITE=1 shiftnet-mcp            # stdio
+  SHIFTNET_MCP_WRITE=1 shiftnet-mcp                                        # stdio, $SHIFTNET_DB
   shiftnet-mcp --transport streamable-http                                 # http://127.0.0.1:8000/mcp
 """
 
@@ -48,7 +48,7 @@ def _json(obj: Any) -> Any:
 
 
 def _read(fn, *args):
-    with db.connect() as conn:
+    with db.reader() as conn:
         return _json(fn(conn, *args))
 
 
@@ -124,8 +124,8 @@ if WRITE:
             with db.transaction() as conn:
                 found = suggest(conn, suggester, lemmas)
                 covered = {r["id"] for r in conn.execute(
-                    "select id from public.senses where %(all)s or lower(lemma) = any(%(l)s)",
-                    {"all": not lemmas, "l": [l.lower() for l in lemmas or []]},
+                    "select id from senses where ? or lower(lemma) in (select value from json_each(?))",
+                    (not lemmas, [l.lower() for l in lemmas or []]),
                 )}
                 return {"stored": save_suggestions(conn, found, suggester.enc.name, covered), "senses": len(covered)}
 
@@ -184,7 +184,7 @@ if WRITE:
         from .discovery.store import save_run
 
         def run() -> dict:
-            with db.connect() as conn:
+            with db.reader() as conn:
                 existing = lexicon.sense_texts(conn, lemma)
             result = discover(
                 lemma, _encoder(), forms=forms, dumps=dumps, per_dump=per_dump, threshold=threshold,
@@ -201,9 +201,10 @@ if WRITE:
 
 def list_candidates_for(conn, run_id) -> list[dict]:
     return conn.execute(
-        """select id, cluster, size, array(select t ->> 'term' from jsonb_array_elements(terms) t limit 8) as terms,
+        """select id, cluster, size,
+                  (select json_group_array(term) from (select t.value ->> 'term' as term from json_each(terms) t limit 8)) as "terms [JSON]",
                   first_seen, nearest_sense_id, nearest_score
-           from public.sense_candidates where run_id = %s order by cluster""",
+           from sense_candidates where run_id = ? order by cluster""",
         (run_id,),
     ).fetchall()
 
@@ -219,7 +220,6 @@ def main() -> None:
     p = argparse.ArgumentParser(prog="shiftnet-mcp")
     p.add_argument("--transport", default="stdio", choices=["stdio", "streamable-http"])
     a = p.parse_args()
-    db.database_url()  # fail early without DATABASE_URL
     server.run(a.transport)
 
 

@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { GitFork, LogOut, Plus, Quote, ShieldCheck } from 'lucide-react';
-import { fetchMyContributions, signOut, useIsModerator, useSession } from '../lib/contributions';
+import { GitFork, Plus, Quote, ShieldCheck } from 'lucide-react';
+import { fetchMyContributions } from '../lib/contributions';
 import { plural } from '../lib/format';
 import { ContributionCard } from '../components/ContributionCard';
 import { useCrumbs } from '../components/Shell';
-import { SignIn } from '../components/SignIn';
 import { Empty, ErrorState, Loading } from '../components/States';
 import { ValidationBadge } from '../components/ValidationBadge';
 
@@ -39,10 +38,7 @@ export function ValidationLegend() {
 
 export function Contribute() {
   useCrumbs([{ label: 'Contribute' }]);
-  const session = useSession();
-  const uid = session?.user.id;
-  const mod = useIsModerator(session);
-  const mine = useQuery({ queryKey: ['my-contributions', uid], queryFn: () => fetchMyContributions(uid!), enabled: !!uid });
+  const mine = useQuery({ queryKey: ['my-contributions'], queryFn: fetchMyContributions });
 
   return (
     <>
@@ -50,10 +46,10 @@ export function Contribute() {
         <span className="label">Contribute</span>
         <h1 className="h-page">Propose usages, senses and relations</h1>
         <p className="muted">
-          Anyone can propose a dated quotation for a sense, a sense that is missing, or a WordNet relation (synonym,
-          hypernym, part …) between a sense and another word. Every proposal runs through automatic
-          checks (required fields, the word appears in the quote, dates are consistent, the reference is well formed, no
-          duplicates). A proposal that passes them all is published straight away; one they flag waits for a moderator.
+          Propose a dated quotation for a sense, a sense that is missing, or a WordNet relation (synonym, hypernym, part …)
+          between a sense and another word. Every proposal runs through automatic checks (required fields, the word appears
+          in the quote, dates are consistent, the reference is well formed, no duplicates). A proposal that passes them all
+          is published straight away; one they flag waits in the review queue.
         </p>
         <details className="legend-details">
           <summary className="small fg2">What the badges mean</summary>
@@ -61,55 +57,41 @@ export function Contribute() {
         </details>
       </div>
 
-      {session === undefined && <Loading label="Checking sign-in…" />}
-      {session === null && <SignIn />}
-      {session && (
-        <>
-          <div className="contribute-bar">
-            <span className="small muted">
-              Signed in as <span className="fg2">{session.user.email}</span>
-            </span>
-            <div className="row-gap wrap push-right">
-              {mod.data && (
-                <Link to="/review" className="btn">
-                  <ShieldCheck size={14} aria-hidden="true" />
-                  Review queue
-                </Link>
-              )}
-              <Link to="/contribute/usage" className="btn">
-                <Quote size={14} aria-hidden="true" />
-                Propose a usage
-              </Link>
-              <Link to="/contribute/relation" className="btn">
-                <GitFork size={14} aria-hidden="true" />
-                Propose a relation
-              </Link>
-              <Link to="/contribute/sense" className="btn btn-primary">
-                <Plus size={14} aria-hidden="true" />
-                Propose a sense
-              </Link>
-              <button className="btn" onClick={() => signOut()}>
-                <LogOut size={14} aria-hidden="true" />
-                Sign out
-              </button>
-            </div>
-          </div>
-          <section className="stack-8" aria-labelledby="mine-h">
-            <div className="group-head">
-              <h2 id="mine-h">Your contributions</h2>
-              {mine.data && <span className="mono small muted">{plural(mine.data.length, 'contribution')}</span>}
-            </div>
-            {mine.isPending && <Loading rows={2} />}
-            {mine.isError && <ErrorState error={mine.error} retry={() => mine.refetch()} />}
-            {mine.data?.length === 0 && (
-              <Empty>
-                Nothing yet. Open a sense and choose <em>Propose a usage</em>, or propose a sense from a word’s page.
-              </Empty>
-            )}
-            {mine.data?.map((c) => <ContributionCard key={c.id} c={c} />)}
-          </section>
-        </>
-      )}
+      <div className="contribute-bar">
+        <span className="small muted">Local mode: you contribute and review.</span>
+        <div className="row-gap wrap push-right">
+          <Link to="/review" className="btn">
+            <ShieldCheck size={14} aria-hidden="true" />
+            Review queue
+          </Link>
+          <Link to="/contribute/usage" className="btn">
+            <Quote size={14} aria-hidden="true" />
+            Propose a usage
+          </Link>
+          <Link to="/contribute/relation" className="btn">
+            <GitFork size={14} aria-hidden="true" />
+            Propose a relation
+          </Link>
+          <Link to="/contribute/sense" className="btn btn-primary">
+            <Plus size={14} aria-hidden="true" />
+            Propose a sense
+          </Link>
+        </div>
+      </div>
+      <section className="stack-8" aria-labelledby="mine-h">
+        <div className="group-head">
+          <h2 id="mine-h">Your contributions</h2>
+          {mine.data && <span className="mono small muted">{plural(mine.data.length, 'contribution')}</span>}
+        </div>
+        {mine.isPending && <Loading rows={2} />}
+        {mine.isError && <ErrorState error={mine.error} retry={() => mine.refetch()} />}
+        {mine.data?.length === 0 && (
+          <Empty>
+            Nothing yet. Open a sense and choose <em>Propose a usage</em>, or propose a sense from a word’s page.
+          </Empty>
+        )}
+        {mine.data?.map((c) => <ContributionCard key={c.id} c={c} />)}
+      </section>
     </>
   );
 }

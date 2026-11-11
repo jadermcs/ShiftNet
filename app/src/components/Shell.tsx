@@ -1,10 +1,9 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useMatch } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, BookOpen, ChevronRight, FileText, House, Info, ListTree, MessageSquarePlus, Monitor, Moon, PanelLeft, ShieldCheck, Sun } from 'lucide-react';
+import { BarChart3, BookOpen, ChevronRight, FileText, House, Info, ListTree, MessageSquarePlus, Monitor, Moon, PanelLeft, ShieldCheck, Sun, Telescope } from 'lucide-react';
 import { fetchWords } from '../lib/api';
 import { useTheme, type ThemePref } from '../lib/theme';
-import { useIsModerator, useSession } from '../lib/contributions';
 import { SearchBox } from './SearchBox';
 
 export interface Crumb {
@@ -40,8 +39,6 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
   const words = useQuery({ queryKey: ['words'], queryFn: fetchWords, staleTime: 5 * 60_000 });
   const wordMatch = useMatch('/word/:lemma');
   const current = wordMatch?.params.lemma;
-  const session = useSession();
-  const moderator = useIsModerator(session).data === true;
 
   return (
     <aside className="sidebar" aria-label="Sidebar">
@@ -60,6 +57,10 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
           <ListTree size={16} aria-hidden="true" />
           Taxonomy
         </NavLink>
+        <NavLink to="/discovery" className="nav-item" onClick={onNavigate}>
+          <Telescope size={16} aria-hidden="true" />
+          Discovery
+        </NavLink>
         <NavLink to="/stats" className="nav-item" onClick={onNavigate}>
           <BarChart3 size={16} aria-hidden="true" />
           Statistics
@@ -76,12 +77,10 @@ function Sidebar({ onNavigate }: { onNavigate: () => void }) {
           <MessageSquarePlus size={16} aria-hidden="true" />
           Contribute
         </NavLink>
-        {moderator && (
-          <NavLink to="/review" className="nav-item" onClick={onNavigate}>
-            <ShieldCheck size={16} aria-hidden="true" />
-            Review queue
-          </NavLink>
-        )}
+        <NavLink to="/review" className="nav-item" onClick={onNavigate}>
+          <ShieldCheck size={16} aria-hidden="true" />
+          Review queue
+        </NavLink>
       </nav>
       <div className="sidebar-label">Lexicon</div>
       <div className="lexicon">

@@ -1,23 +1,25 @@
 # ShiftNet backend
 
-Python tools that write to the ShiftNet database:
+The ShiftNet database and the tools around it. The database is one SQLite file: `$SHIFTNET_DB`, by default `~/data/shiftnet.sqlite` (schema: `src/shiftnet_backend/schema.sql`, created on first use).
 
-- **Models** (`models.py`, `lexicon.py`): typed rows (Pydantic) for senses, parent links, synonyms, relations, sources and attestations, committed with psycopg in one transaction per batch. The checks mirror the database constraints, so bad rows fail before they reach Postgres.
+- **API** (`api.py`, `contributions.py`): `shiftnet serve`, the HTTP API the web app (`../app`) reads and writes through, including the contribution checks and the review queue. There is one local user, who contributes and reviews.
+- **Models** (`models.py`, `lexicon.py`): typed rows (Pydantic) for senses, parent links, synonyms, relations, sources and attestations, committed in one transaction per batch. The checks mirror the database constraints, so bad rows fail before they reach the database.
 - **Sense discovery** (`discovery/`): samples a word's usages from [fineweb-edu](https://huggingface.co/datasets/HuggingFaceFW/fineweb-edu), encodes each with [LexSPLADE](https://huggingface.co/jadermcs/lexsplade-bert-large-silver), clusters them into candidate senses, and stores the candidates for review.
 - **Relation suggestions** (`discovery/relations.py`): proposes WordNet relations (synonym, hypernym, hyponym, meronym, holonym) for each sense with the same encoder. Contributors pick them up on the Contribute page.
 - **MCP server** (`mcp_server.py`): lets an assistant (Claude Code, Claude Desktop …) browse the lexicon and review candidates: match, promote with a gloss, or reject.
-
-The browser app never uses any of this; it keeps reading through Supabase with the publishable key.
 
 ## Setup
 
 ```sh
 cd backend
-uv sync --all-extras          # Python 3.12, CUDA 13.0 torch (pyproject: pytorch-cu130 index); drop --all-extras for models + CLI import only
-export DATABASE_URL='postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres'
+uv sync --all-extras          # Python 3.12, CUDA 13.0 torch (pyproject: pytorch-cu130 index); drop --all-extras for the API, models and CLI only
+uv run shiftnet seed          # once, into an empty database: the sample lexicon (seed/seed.sql)
+uv run shiftnet serve         # the API for the web app: http://127.0.0.1:8000/api/…
 ```
 
-`DATABASE_URL` must be a privileged connection (Supabase: *Connect → Session pooler*, or a local `supabase start` at `postgresql://postgres:postgres@127.0.0.1:54322/postgres`). Apply `app/supabase/migrations/20261022150000_sense_discovery.sql` first (`supabase db push`, or paste it into the SQL editor).
+Every command takes `--db PATH` instead of `$SHIFTNET_DB`. `shiftnet serve --static ../app/dist` also serves the built web app, so one process runs everything. SQLite runs in WAL mode, so the API keeps serving while a CLI command writes; writers queue for the lock.
+
+The sample lexicon comes from `seed/generate_seed.py` (`python3 seed/generate_seed.py > seed/seed.sql`).
 
 ## Committing data
 
@@ -94,7 +96,7 @@ for i in 0 1 2 3; do                                             # one process p
     --device cuda --dtype bfloat16 --batch-size 512 &
 done; wait
 uv run shiftnet -v bulk cluster  --workdir $W                    # resolve ambiguous forms, cluster each lemma
-DATABASE_URL=… uv run shiftnet -v bulk import --workdir $W       # into discovery_runs / sense_candidates
+uv run shiftnet -v bulk import --workdir $W                      # into discovery_runs / sense_candidates
 uv run shiftnet bulk status --workdir $W                         # what each stage has produced
 ```
 
@@ -128,14 +130,14 @@ Open English WordNet (`wn`, lexicon `oewn:2024`, downloaded with `python -c "imp
 
 On the 29 seed senses, quality is uneven. Concrete nouns do well (mouse, the animal: hypernyms *animal, pet*; meronyms *tail, head, leg, foot, body, fur*). Metaphorical senses and verbs are weak ("a timid person" still gets *animal*, at 0.56). Scores are therefore evidence for a person, not a decision.
 
-Suggestions are stored in `relation_suggestions`, readable by signed-in users. On the web app, **Contribute → Propose a relation** shows them next to the form, and the automatic checks of `submit_relation` use them. A relation is published at once (validation `automatic`) only when all three hold: the model scores it 0.6 or more, the target word is in ShiftNet, and the contributor has 3+ accepted contributions and none rejected. Everything else goes to the review queue. A published hypernym or hyponym with a target sense or synset also adds the taxonomy edge, unless the parent is already an ancestor. Withdrawing the contribution removes both.
+Suggestions are stored in `relation_suggestions`. On the web app, **Contribute → Propose a relation** shows them next to the form, and the automatic checks of a proposed relation use them. A relation is published at once (validation `automatic`) only when both hold: the model scores it 0.6 or more, and the target word is in ShiftNet. Everything else goes to the review queue. A published hypernym or hyponym with a target sense or synset also adds the taxonomy edge, unless the parent is already an ancestor. Withdrawing the contribution removes both.
 
 ## MCP server
 
 ```sh
-DATABASE_URL=… uv run shiftnet-mcp                         # read-only tools, stdio
-DATABASE_URL=… SHIFTNET_MCP_WRITE=1 uv run shiftnet-mcp    # also save_senses, discover_senses, match/promote/reject
-uv run shiftnet-mcp --transport streamable-http            # http://127.0.0.1:8000/mcp
+uv run shiftnet-mcp                                        # read-only tools, stdio
+SHIFTNET_MCP_WRITE=1 uv run shiftnet-mcp                   # also save_senses, discover_senses, match/promote/reject
+uv run shiftnet-mcp --transport streamable-http            # http://127.0.0.1:8000/mcp (stop `shiftnet serve` or move it with --port)
 ```
 
 | Tool | Writes |
@@ -147,14 +149,12 @@ uv run shiftnet-mcp --transport streamable-http            # http://127.0.0.1:80
 | `match_candidate`, `promote_candidate`, `reject_candidate` | yes |
 | `suggest_relations` (slow: runs the encoder over the senses) | yes |
 
-Claude Code: `.mcp.json.example` at the repository root registers it. Copy it to `.mcp.json` (gitignored) and set the connection string. A typical session: "run discovery for *stream*, then review the pending candidates". The assistant reads each cluster's usages, matches or rejects it, and drafts glosses for new senses.
+Claude Code: `.mcp.json.example` at the repository root registers it. Copy it to `.mcp.json` (gitignored); it uses `SHIFTNET_DB`. A typical session: "run discovery for *stream*, then review the pending candidates". The assistant reads each cluster's usages, matches or rejects it, and drafts glosses for new senses.
 
 ## Tests
 
 ```sh
-SHIFTNET_PG_BIN=/path/to/postgres/bin uv run pytest     # throwaway server: initdb + pg_ctl
-TEST_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres uv run pytest
-uv run pytest                                           # without either: database tests are skipped
+uv run pytest
 ```
 
-The database tests apply every migration in `app/supabase/migrations` plus `seed.sql` to a fresh database, with Supabase's `auth` schema and roles stubbed. Discovery tests use a bag-of-words stand-in for the encoder. Postgres binaries with contrib (unaccent, pg_trgm, fuzzystrmatch) are needed. Without a system Postgres, the [zonky embedded-postgres binaries](https://repo1.maven.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-linux-amd64/) work: unzip the jar and extract the `.txz`.
+Database tests run on a copy of a SQLite file seeded with `seed/seed.sql`; nothing else is needed. Discovery tests use a bag-of-words stand-in for the encoder.

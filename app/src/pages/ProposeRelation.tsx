@@ -21,7 +21,6 @@ import { senseTag } from '../lib/format';
 import type { SenseDetail } from '../lib/types';
 import { Field, errorFor } from '../components/Field';
 import { useCrumbs } from '../components/Shell';
-import { RequireSignIn } from '../components/SignIn';
 import { ErrorState, Loading } from '../components/States';
 import { SubmitBar, SubmitResult } from '../components/SubmitBar';
 import { ValidationBadge } from '../components/ValidationBadge';
@@ -49,42 +48,39 @@ export function ProposeRelation() {
           relations for each sense; pick one or enter your own.
         </p>
       </div>
-      <RequireSignIn>
-        {() =>
-          !senseId ? (
-            <SensePicker title="Which sense is the relation for?" onPick={(id) => setParams({ sense: id })} />
-          ) : sense.isPending ? (
-            <Loading label="Loading sense…" />
-          ) : sense.isError ? (
-            <ErrorState error={sense.error} retry={() => sense.refetch()} />
-          ) : !s ? (
-            <>
-              <p className="card state" role="alert">
-                There is no sense <span className="mono">{senseId}</span>.
-              </p>
-              <SensePicker title="Which sense is the relation for?" onPick={(id) => setParams({ sense: id })} />
-            </>
-          ) : (
-            <>
-              <div className="card propose-target">
-                <span className="label">Sense</span>
-                <div className="row-gap wrap">
-                  <Link to={`/sense/${s.id}`} className="strong-lg">
-                    {s.lemma} <span className="mono fg2">{senseTag(s)}</span>
-                  </Link>
-                  <ValidationBadge state={s.validation} compact={s.validation === 'editorial'} />
-                  <button className="link-btn underline small push-right" onClick={() => setParams({})}>
-                    Choose another sense
-                  </button>
-                </div>
-                <div className="gloss">{s.gloss}</div>
-                <Recorded s={s} />
-              </div>
-              <RelationForm key={s.id} sense={s} />
-            </>
-          )
-        }
-      </RequireSignIn>
+      {!senseId ? (
+        <SensePicker title="Which sense is the relation for?" onPick={(id) => setParams({ sense: id })} />
+      ) : sense.isPending ? (
+        <Loading label="Loading sense…" />
+      ) : sense.isError ? (
+        <ErrorState error={sense.error} retry={() => sense.refetch()} />
+      ) : !s ? (
+        <>
+          <p className="card state" role="alert">
+            There is no sense <span className="mono">{senseId}</span>.
+          </p>
+          <SensePicker title="Which sense is the relation for?" onPick={(id) => setParams({ sense: id })} />
+        </>
+      ) : (
+        <>
+          <div className="card propose-target">
+            <span className="label">Sense</span>
+            <div className="row-gap wrap">
+              <Link to={`/sense/${s.id}`} className="strong-lg">
+                {s.lemma} <span className="mono fg2">{senseTag(s)}</span>
+              </Link>
+              <ValidationBadge state={s.validation} compact={s.validation === 'editorial'} />
+              <button className="link-btn underline small push-right" onClick={() => setParams({})}>
+                Choose another sense
+              </button>
+            </div>
+            <div className="gloss">{s.gloss}</div>
+            <Recorded s={s} />
+          </div>
+          <RelationForm key={s.id} sense={s} />
+        </>
+      )}
+
     </>
   );
 }
@@ -158,8 +154,7 @@ function RelationForm({ sense }: { sense: SenseDetail }) {
     run(async () => {
       const c = await submitRelation(compact(p));
       setDone(c);
-      qc.invalidateQueries({ queryKey: ['my-contributions'] });
-      qc.invalidateQueries({ queryKey: ['sense', sense.id] });
+      qc.invalidateQueries(); // an auto-accepted proposal changes the lexicon: refetch every view
     });
   };
 

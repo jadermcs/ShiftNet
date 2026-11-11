@@ -887,8 +887,8 @@ def import_runs(conn_factory, workdir: Path, tag: str, encoder_factory: Callable
 
     with conn_factory(False) as conn:
         done = {r["lemma"] for r in conn.execute(
-            "select lemma from public.discovery_runs where params ->> 'bulk' = %s", (tag,))}
-        known = {r["l"] for r in conn.execute("select distinct public.normalize_lemma(lemma) as l from public.senses")}
+            "select lemma from discovery_runs where bulk_tag = ?", (tag,))}
+        known = {r["l"] for r in conn.execute("select distinct lemma_key as l from senses")}
     encoder = None
     stored = 0
     pending: list[RunResult] = []

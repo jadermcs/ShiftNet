@@ -6,7 +6,7 @@ import pytest
 from shiftnet_backend import cli
 
 
-def test_cli_import_and_dry_run(database_url, tmp_path, capsys):
+def test_cli_import_and_dry_run(db_path, tmp_path, capsys):
     f = tmp_path / "senses.jsonl"
     f.write_text(json.dumps({"lemma": "doomscroll", "pos": "verb", "gloss": "to keep reading bad news online",
                              "date_label": "2018", "date_earliest": 2018, "source": "Corpus", "source_type": "corpus"}) + "\n")
@@ -17,7 +17,7 @@ def test_cli_import_and_dry_run(database_url, tmp_path, capsys):
     assert "doomscroll.v.02" in capsys.readouterr().out
 
 
-def test_cli_rejects_invalid_rows(database_url, tmp_path, capsys):
+def test_cli_rejects_invalid_rows(db_path, tmp_path, capsys):
     f = tmp_path / "bad.json"
     f.write_text(json.dumps([{"lemma": "x", "pos": "noun", "gloss": "", "date_label": "1", "date_earliest": 1,
                               "source": "s", "source_type": "corpus"}]))
@@ -26,7 +26,7 @@ def test_cli_rejects_invalid_rows(database_url, tmp_path, capsys):
 
 
 @pytest.mark.parametrize("write", [False, True])
-def test_mcp_tools(database_url, monkeypatch, write):
+def test_mcp_tools(db_path, monkeypatch, write):
     import importlib
 
     monkeypatch.setenv("SHIFTNET_MCP_WRITE", "1" if write else "0")

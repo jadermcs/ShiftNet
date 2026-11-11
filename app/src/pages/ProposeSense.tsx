@@ -7,7 +7,6 @@ import { CURRENT_YEAR, senseTag } from '../lib/format';
 import { POS_ORDER, SHIFT_TYPES, type Pos, type Sense, type ShiftType, type SourceType } from '../lib/types';
 import { errorFor, Field } from '../components/Field';
 import { useCrumbs } from '../components/Shell';
-import { RequireSignIn } from '../components/SignIn';
 import { SubmitBar, SubmitResult } from '../components/SubmitBar';
 import { EMPTY_USAGE, UsageFields, usagePayload, type UsageInput } from '../components/UsageFields';
 import { ValidationBadge } from '../components/ValidationBadge';
@@ -54,7 +53,7 @@ export function ProposeSense() {
           which older sense it grew from. Add a dated quotation to support it.
         </p>
       </div>
-      <RequireSignIn>{() => <SenseForm key={initial} initialLemma={initial} />}</RequireSignIn>
+      <SenseForm key={initial} initialLemma={initial} />
     </>
   );
 }
@@ -103,11 +102,7 @@ function SenseForm({ initialLemma }: { initialLemma: string }) {
     run(async () => {
       const c = await submitSense(payload());
       setDone(c);
-      qc.invalidateQueries({ queryKey: ['my-contributions'] });
-      if (c.status === 'accepted') {
-        qc.invalidateQueries({ queryKey: ['word', c.lemma] });
-        qc.invalidateQueries({ queryKey: ['words'] });
-      }
+      qc.invalidateQueries(); // an auto-accepted proposal changes the lexicon: refetch every view
     });
   };
 

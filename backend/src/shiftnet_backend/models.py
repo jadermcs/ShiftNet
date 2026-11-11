@@ -1,6 +1,6 @@
 """Typed rows for the ShiftNet lexicon and the sense-discovery staging tables.
 
-The enums and checks mirror app/supabase/migrations, so a row that validates here is accepted by
+The enums and checks mirror schema.sql, so a row that validates here is accepted by
 the database. Ids, sense numbers and branches that the database maintains are not part of the
 input models.
 """
@@ -106,7 +106,7 @@ class Row(BaseModel):
 
 
 class SourceIn(Row):
-    """A cited work (public.sources). Reused by URL, else identifier, else kind + title + author."""
+    """A cited work (sources). Reused by URL, else identifier, else kind + title + author."""
 
     kind: ReferenceKind
     title: Text
@@ -127,7 +127,7 @@ class SourceIn(Row):
 
 
 class AttestationIn(Row):
-    """A dated quotation showing a sense in use (public.attestations)."""
+    """A dated quotation showing a sense in use (attestations)."""
 
     quote: Text
     source: SourceIn
@@ -139,7 +139,7 @@ class AttestationIn(Row):
 
 
 class ParentIn(Row):
-    """A parent link (public.sense_parents). The first parent is the branch the sense grows from."""
+    """A parent link (sense_parents). The first parent is the branch the sense grows from."""
 
     parent_id: Text
     source: str | None = None
@@ -195,7 +195,7 @@ class SenseIn(Row):
 
 
 def sense_id_prefix(lemma: str, pos: PartOfSpeech) -> str:
-    """'ice cream', noun → 'ice_cream.n.' (same rule as private.next_sense_id)."""
+    """'ice cream', noun → 'ice_cream.n.' (same rule as lexicon.next_sense_id)."""
     return re.sub(r"\s+", "_", lemma.strip()).lower() + "." + POS_TAG[pos] + "."
 
 

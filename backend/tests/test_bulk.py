@@ -164,23 +164,23 @@ def test_stages_resume(workdir):
     assert sum(status["sample"].values()) == bulk.load_usages(workdir).num_rows
 
 
-def test_import_stores_runs_with_nearest_sense(workdir, database_url, conn):
+def test_import_stores_runs_with_nearest_sense(workdir, db_path, conn):
     from shiftnet_backend import db
 
     def factory(write):
-        return db.transaction(database_url) if write else db.connect(database_url)
+        return db.transaction(db_path) if write else db.reader(db_path)
 
     n = bulk.import_runs(factory, workdir, "test", lambda: BagEncoder(WORDS))
     assert n == len(_runs(workdir))
     assert bulk.import_runs(factory, workdir, "test", lambda: BagEncoder(WORDS)) == 0  # already imported under this tag
-    r = conn.execute("select usage_count, params from public.discovery_runs where lemma = 'cloud'").fetchone()
+    r = conn.execute("select usage_count, params from discovery_runs where lemma = 'cloud'").fetchone()
     assert r["usage_count"] == 100 and r["params"]["bulk"] == "test"
     first = conn.execute(
-        "select nearest_sense_id, first_seen from public.sense_candidates where lemma = 'cloud' order by first_seen"
+        "select nearest_sense_id, first_seen from sense_candidates where lemma = 'cloud' order by first_seen"
     ).fetchone()
     assert first["first_seen"].year == 2013 and first["nearest_sense_id"] == "cloud.n.02"
     stored = conn.execute(
-        "select count(*) as n from public.corpus_usages u join public.discovery_runs r on r.id = u.run_id "
+        "select count(*) as n from corpus_usages u join discovery_runs r on r.id = u.run_id "
         "where r.lemma = 'cloud'"
     ).fetchone()["n"]
     assert stored == 40

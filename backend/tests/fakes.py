@@ -32,6 +32,7 @@ class FakeEncoder(Encoder):
         self.max_tokens = max_tokens
         self.batch_size = 8
         self.vocab = VOCAB
+        self.words = VOCAB
 
     def encode(self, usages: list[CorpusUsage], show_progress: bool = True) -> sparse.csr_matrix:
         index = {t: i for i, t in enumerate(VOCAB)}

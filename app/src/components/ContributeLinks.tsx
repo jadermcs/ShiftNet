@@ -1,21 +1,16 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, Quote } from 'lucide-react';
-import { fetchPendingForSense, useSession, type UsageProposal } from '../lib/contributions';
+import { fetchPendingForSense, type UsageProposal } from '../lib/contributions';
 import { UsagePreview } from './ContributionCard';
 import { ValidationBadge } from './ValidationBadge';
 
 /**
- * Sense page: "Propose a usage", and the pending usages this viewer may see (their own; all for a
- * moderator), kept apart from the published attestations and labelled pending.
+ * Sense page: "Propose a usage", and the usages proposed for the sense and waiting for review, kept
+ * apart from the published attestations and labelled pending.
  */
 export function SenseContribute({ senseId }: { senseId: string }) {
-  const session = useSession();
-  const pending = useQuery({
-    queryKey: ['pending-usages', senseId, session?.user.id],
-    queryFn: () => fetchPendingForSense(senseId),
-    enabled: !!session,
-  });
+  const pending = useQuery({ queryKey: ['pending-usages', senseId], queryFn: () => fetchPendingForSense(senseId) });
   const items = pending.data ?? [];
 
   return (
@@ -34,7 +29,7 @@ export function SenseContribute({ senseId }: { senseId: string }) {
           <div className="row-gap wrap">
             <ValidationBadge state="pending" />
             <span className="small muted">
-              Proposed, not part of the lexicon until a moderator accepts it. Only the contributor and moderators see these.
+              Proposed, not part of the lexicon until it is accepted in the review queue.
             </span>
           </div>
           <ol className="attestations">

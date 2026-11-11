@@ -85,7 +85,7 @@ def test_review_flow(conn, run):
     assert "CC-MAIN-2024-10" in s["source"]
     assert len(s["examples"]) == 2 and len(s["attestations"]) == 3
     assert s["parents"][0]["id"] == "cloud.n.06"
-    linked = conn.execute("select count(*) as n from public.corpus_usages where attestation_id is not null").fetchone()
+    linked = conn.execute("select count(*) as n from corpus_usages where attestation_id is not null").fetchone()
     assert linked["n"] == 5
 
     with pytest.raises(ReviewError, match="already promoted"):
@@ -99,9 +99,3 @@ def test_reject_and_unknown_candidate(conn, run):
     assert reject(conn, c["id"], "mixed").status == "rejected"
     with pytest.raises(ReviewError, match="No candidate"):
         match(conn, "00000000-0000-0000-0000-000000000000")
-
-
-def test_staging_tables_are_private(conn, run):
-    conn.execute("set local role anon")
-    with pytest.raises(Exception, match="permission denied"):
-        conn.execute("select * from public.sense_candidates")

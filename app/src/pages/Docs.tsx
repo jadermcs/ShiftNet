@@ -43,7 +43,7 @@ const PAGES: Entry[] = [
   [<C>/synset/:id</C>, 'One taxonomy node: its members, path to the top, other hypernyms and hyponyms.'],
   [<Link to="/stats">Statistics</Link>, 'Figures across the lexicon: new senses per period and shift type, parts of speech, change along main parent links.'],
   [<Link to="/about">About &amp; sources</Link>, 'Data sources, how dates are assigned, shift types and how to cite.'],
-  [<Link to="/contribute">Contribute</Link>, 'Sign in, propose usages, senses and relations, and follow your contributions.'],
+  [<Link to="/contribute">Contribute</Link>, 'Propose usages, senses and relations, review them, and follow your contributions.'],
   [<C>/review</C>, 'Moderators only: the review queue.'],
 ];
 
@@ -78,6 +78,8 @@ const CONTRIB: Entry[] = [
 ];
 
 const CLI: Entry[] = [
+  [<C>shiftnet serve [--static ../app/dist]</C>, 'Run the API this website talks to; with --static, also serve the built website.'],
+  [<C>shiftnet seed</C>, 'Load the sample lexicon into an empty database.'],
   [<C>shiftnet import FILE [--dry-run]</C>, 'Insert or update senses from JSON lines, with parents, synonyms, relations and attestations, in one transaction.'],
   [<C>shiftnet discover LEMMA</C>, 'Sample the word’s usages from fineweb-edu, cluster them with LexSPLADE and store the clusters as candidate senses.'],
   [<C>shiftnet candidates [--lemma W]</C>, 'Pending candidates with the nearest existing sense.'],
@@ -155,33 +157,33 @@ export function Docs() {
       <section id="contributing" aria-labelledby="contributing-h">
         <h2 id="contributing-h">Contributing</h2>
         <p>
-          Sign in on the <Link to="/contribute">Contribute</Link> page with your email address: one email carries both a
-          sign-in link and a 6-digit code. Then propose:
+          ShiftNet runs locally with one user, who both contributes and reviews. From the{' '}
+          <Link to="/contribute">Contribute</Link> page, propose:
         </p>
         <Terms items={CONTRIB} />
         <p>
-          Every proposal runs through automatic checks in the database: required fields, the word appears in the quote,
-          dates are consistent, the reference is well formed, no duplicates. <em>Run checks</em> shows the results before
-          you submit. A failed check marked as an error refuses the proposal. One that only flags it sends it to a moderator.
-          A proposal that passes everything is published at once as <em>Auto-checked</em>. New senses are published at once
-          only for trusted contributors (3 or more accepted contributions, none rejected).
+          Every proposal runs through automatic checks: required fields, the word appears in the quote, dates are
+          consistent, the reference is well formed, no duplicates. <em>Run checks</em> shows the results before you
+          submit. A failed check marked as an error refuses the proposal. One that only flags it sends it to the review
+          queue. A proposal that passes everything is published at once as <em>Auto-checked</em>.
         </p>
         <p>
-          Moderators accept or reject flagged proposals in the review queue; a rejection carries a note the contributor
-          sees. They can also confirm or withdraw auto-accepted ones.
+          In the <Link to="/review">review queue</Link>, accept or reject flagged proposals (a rejection keeps a note
+          saying why), and confirm or withdraw auto-accepted ones.
         </p>
       </section>
 
       <section id="backend" aria-labelledby="backend-h">
         <h2 id="backend-h">Backend tools</h2>
         <p>
-          The <C>backend/</C> package (Python 3.12, managed with uv) writes to the database with a privileged connection.
-          The website never uses it.
+          The <C>backend/</C> package (Python 3.12, managed with uv) owns the database, a single SQLite file
+          (<C>$SHIFTNET_DB</C>, by default <C>~/data/shiftnet.sqlite</C>). <C>shiftnet serve</C> is the API this website
+          talks to; the other commands load and curate the lexicon.
         </p>
         <Code>{`
 cd backend
 uv sync --all-extras
-export DATABASE_URL='postgresql://…'    # Supabase: Connect → Session pooler
+uv run shiftnet serve                   # the API, http://127.0.0.1:8000
 `}</Code>
         <Terms items={CLI} />
         <h3>Sense discovery</h3>
@@ -202,7 +204,7 @@ export DATABASE_URL='postgresql://…'    # Supabase: Connect → Session pooler
           derives hyponyms and holonyms as their inverses. Each target is matched to the ShiftNet sense or taxonomy synset
           whose definition fits best. The scores are evidence for a person, not a decision: they appear next to the{' '}
           <em>Propose a relation</em> form. A proposed relation is published at once only when the model scores it 0.6 or
-          more, the target word is in ShiftNet, and the contributor is trusted.
+          more and the target word is in ShiftNet.
         </p>
       </section>
 
@@ -210,17 +212,15 @@ export DATABASE_URL='postgresql://…'    # Supabase: Connect → Session pooler
         <h2 id="mcp-h">MCP server</h2>
         <p>
           <C>shiftnet-mcp</C> exposes the lexicon and the discovery workflow to an assistant such as Claude Code or Claude
-          Desktop. Read tools are always on. Tools that write are registered only with <C>SHIFTNET_MCP_WRITE=1</C>, since
-          the connection is privileged.
+          Desktop. Read tools are always on. Tools that write are registered only with <C>SHIFTNET_MCP_WRITE=1</C>.
         </p>
         <Code>{`
-DATABASE_URL=… uv run shiftnet-mcp                         # read-only, stdio
-DATABASE_URL=… SHIFTNET_MCP_WRITE=1 uv run shiftnet-mcp    # with write tools
-uv run shiftnet-mcp --transport streamable-http            # http://127.0.0.1:8000/mcp
+uv run shiftnet-mcp                           # read-only, stdio
+SHIFTNET_MCP_WRITE=1 uv run shiftnet-mcp      # with write tools
+uv run shiftnet-mcp --transport streamable-http   # http://127.0.0.1:8000/mcp
 `}</Code>
         <p>
-          For Claude Code, copy <C>.mcp.json.example</C> at the repository root to <C>.mcp.json</C> and set the connection
-          string:
+          For Claude Code, copy <C>.mcp.json.example</C> at the repository root to <C>.mcp.json</C>:
         </p>
         <Code>{`
 {
@@ -228,7 +228,7 @@ uv run shiftnet-mcp --transport streamable-http            # http://127.0.0.1:80
     "shiftnet": {
       "command": "uv",
       "args": ["run", "--project", "backend", "--extra", "mcp", "--extra", "discovery", "shiftnet-mcp"],
-      "env": { "DATABASE_URL": "postgresql://…", "SHIFTNET_MCP_WRITE": "1" }
+      "env": { "SHIFTNET_DB": "~/data/shiftnet.sqlite", "SHIFTNET_MCP_WRITE": "1" }
     }
   }
 }
