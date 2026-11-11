@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "shiftnet": {
+      "command": "uv",
+      "args": ["run", "--project", "backend", "--extra", "mcp", "--extra", "discovery", "shiftnet-mcp"],
+      "env": {
+        "DATABASE_URL": "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+        "SHIFTNET_MCP_WRITE": "1"
+      }
+    }
+  }
+}
